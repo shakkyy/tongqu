@@ -117,6 +117,26 @@ python agent_orchestrator.py
 - 开发联调建议先 **`USE_REAL_API=false`**，使用 `mock_data.py` 中按 **剪纸 / 水墨 / 皮影** 准备的占位内容，不消耗线上配额。
 - 接入真实服务时设 **`USE_REAL_API=true`**，并在 `.env` 中配置 **DashScope** 与 **阿里云** 相关变量；**NLS 应用 AppKey** 与 **RAM AccessKey** 不是同一种密钥，请勿混填。
 
+### 推送到 GitHub（`https://github.com/shakkyy/tongqu`）
+
+本地仓库已初始化时，在 `tongqu-projects` 目录下执行：
+
+```bash
+git remote -v   # 确认 origin 指向 github.com/shakkyy/tongqu.git
+git push -u origin main
+```
+
+若使用 **HTTPS** 推送时提示无法输入账号密码，请在 GitHub 使用 **Personal Access Token（PAT）** 作为密码，或配置凭据助手；也可改用 **SSH**：
+
+```bash
+git remote set-url origin git@github.com:shakkyy/tongqu.git
+git push -u origin main
+```
+
+（需本机已配置 SSH 公钥并添加到 GitHub 账号。）
+
+若远程已有提交且推送被拒绝，可先：`git pull --rebase origin main`，再 `git push`。
+
 ---
 
 ## 设计原则（与产品一致）
