@@ -1,0 +1,12 @@
+# 核心
+python-dotenv>=1.0.0
+dashscope>=1.19.0
+requests>=2.31.0
+
+# 阿里云内容安全（Green）
+alibabacloud-tea-openapi>=0.3.8
+alibabacloud-tea-util>=0.3.11
+alibabacloud-green20220302>=2.0.0
+
+# 阿里云 OpenAPI 通用（NLS CreateToken 等）
+aliyun-python-sdk-core>=2.14.0
