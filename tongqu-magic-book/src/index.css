@@ -1,17 +1,83 @@
-@import url("https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&family=Nunito:wght@500;700;800&display=swap");
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;700;900&display=swap');
+
 :root {
-  font-family: "Nunito", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+  --font-classical: "Noto Serif SC", STZhongsong, "Source Han Serif SC", "Source Han Serif CN", "Songti SC", "SimSun", serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", Arial, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+
+  font-family: var(--font-classical), var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* 中国风默认主题（暖宣纸） */
+  --theme-bg: 245 237 214;
+  --theme-surface: 255 255 255;
+  --theme-text: 26 43 60;
+  --theme-primary: 201 72 48;
+  --theme-secondary: 43 107 181;
+  --theme-accent: 233 160 30;
+  --theme-success: 42 173 110;
+
+  /* 传统色语义别名 */
+  --cn-red: 201 72 48;
+  --cn-yellow: 233 160 30;
+  --cn-green: 42 173 110;
+  --cn-azure: 43 107 181;
+  --cn-paper: 245 237 214;
+  --cn-ink: 26 43 60;
+}
+
+/* 备用主题：春野青绿（后续切换 data-theme 即可） */
+[data-theme="spring"] {
+  --theme-bg: 235 243 230;
+  --theme-surface: 255 255 255;
+  --theme-text: 29 44 40;
+  --theme-primary: 174 69 56;
+  --theme-secondary: 55 123 150;
+  --theme-accent: 211 151 46;
+  --theme-success: 63 148 94;
 }
 
 body {
   margin: 0;
+  background-color: rgb(var(--theme-bg));
+  font-family: inherit;
+  background-image: url("data:image/svg+xml,%3Csvg width='200' height='200' viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23noise)' opacity='0.055'/%3E%3C/svg%3E");
 }
 
 * {
   box-sizing: border-box;
+}
+
+@layer utilities {
+  .border-handdrawn {
+    border: 3px solid rgb(var(--theme-text));
+    border-radius: 12px;
+  }
+  
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.5s ease-out forwards;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

@@ -1,16 +1,17 @@
-import { motion } from "framer-motion";
 import type { StoryStyle } from "../types";
+import { Scissors, Palette, Theater } from "lucide-react";
 
 interface StyleOption {
   id: StoryStyle;
   label: string;
-  icon: string;
+  icon: any;
 }
 
+// 每种画风对应传统中国色：剪纸=朱砂红、水墨=花青蓝、皮影=藤黄
 const STYLE_OPTIONS: StyleOption[] = [
-  { id: "paper-cut", label: "剪纸", icon: "✂️" },
-  { id: "ink-wash", label: "水墨", icon: "🖌️" },
-  { id: "shadow-puppet", label: "皮影", icon: "🎭" },
+  { id: "paper-cut", label: "剪纸风", icon: Scissors },
+  { id: "ink-wash", label: "水墨画", icon: Palette },
+  { id: "shadow-puppet", label: "皮影戏", icon: Theater },
 ];
 
 interface StyleSelectorProps {
@@ -20,29 +21,30 @@ interface StyleSelectorProps {
 
 export function StyleSelector({ value, onChange }: StyleSelectorProps) {
   return (
-    <div className="grid grid-cols-3 gap-4">
+    <div className="grid grid-cols-3 gap-2">
       {STYLE_OPTIONS.map((option) => {
         const selected = option.id === value;
+        const Icon = option.icon;
         return (
-          <motion.button
+          <button
             key={option.id}
             type="button"
             onClick={() => onChange(option.id)}
-            whileTap={{ scale: 0.94 }}
-            animate={
+            className={`relative flex flex-col items-center justify-center gap-1.5 border-2 border-cn-ink rounded-xl py-2 px-1 transition-all hover:-translate-y-0.5 ${
               selected
-                ? { scale: 1.06, boxShadow: "0 0 0 4px rgba(59,130,246,0.25), 0 10px 24px rgba(59,130,246,0.32)" }
-                : { scale: 1, boxShadow: "0 8px 18px rgba(15, 23, 42, 0.09)" }
-            }
-            className={`rounded-2xl border-2 px-4 py-5 text-lg font-semibold transition ${
-              selected
-                ? "border-sky-kid bg-sky-kid/20 text-slate-800"
-                : "border-transparent bg-white/80 text-slate-700"
+                ? option.id === "paper-cut"
+                  ? "bg-theme-primary text-white shadow-[2px_3px_0px_#1A2B3C] z-10"
+                  : option.id === "ink-wash"
+                    ? "bg-theme-secondary text-white shadow-[2px_3px_0px_#1A2B3C] z-10"
+                    : "bg-theme-accent text-theme-text shadow-[2px_3px_0px_#1A2B3C] z-10"
+                : "bg-cn-paper text-cn-ink/70 shadow-sm"
             }`}
           >
-            <div className="mb-1 text-3xl">{option.icon}</div>
-            {option.label}
-          </motion.button>
+            <div className={`flex items-center justify-center w-8 h-8 rounded-full border-2 ${selected ? "border-white/40 bg-white/20" : "border-cn-ink bg-white"}`}>
+              <Icon className={`w-4 h-4 ${selected ? "text-current" : "text-cn-ink"}`} />
+            </div>
+            <span className={`font-classical font-bold ${selected ? "text-base" : "text-sm"}`}>{option.label}</span>
+          </button>
         );
       })}
     </div>
