@@ -66,8 +66,8 @@ Agent 与安全模块协同，在链路 **多个环节** 介入：
 |------|------|
 | 前端 | React、TypeScript、Tailwind CSS、Framer Motion（儿童友好大按钮与动效） |
 | 后端编排 | Python、`agent_orchestrator.py` 异步编排 |
-| AI 能力（可切换） | DashScope（Qwen 文本、万相文生图等）、阿里云 NLS（语音）、Green（内容安全）等 |
-| 配置策略 | **Mock First**：`USE_REAL_API=false` 时本地高质量占位数据，联调 UI 与动效；上线前切换为真实密钥 |
+| AI 能力 | 百炼 **Qwen**（故事 JSON）、**Qwen-VL**（草图先读图成文）、**Gemini**（仅绘本配图）、阿里云 **NLS** / **Green** |
+| 配置策略 | 需配置 **`DASHSCOPE_API_KEY` + `ALIYUN_*` + 配图密钥**（直连 Gemini 或设置 `GEMINI_OPENAI_BASE_URL` 走 OpenAI 兼容中转，见 `tongqu-agent-backend/.env.example`） |
 
 ---
 
@@ -82,9 +82,10 @@ tongqu-projects/
 └── tongqu-agent-backend/     # 后端：Agent、安全中间件、真实 API 客户端
     ├── agent_orchestrator.py # 智能中枢：编排故事 / 配图 / 语音与安全
     ├── safety_middleware.py  # 多层级内容安全过滤与日志
-    ├── real_clients.py       # DashScope / 阿里云 NLS、Green 等真实调用封装
-    ├── config.py             # 环境变量与 Mock 开关
-    ├── mock_data.py          # 按风格的 Mock 绘本数据（开发联调）
+    ├── gemini_clients.py     # 配图：官方 Gemini 或 OpenAI 兼容中转（如易步云）
+    ├── real_clients.py       # DashScope Qwen + 阿里云 Green / NLS
+    ├── main.py               # FastAPI：/api/storybook/create
+    ├── config.py             # 环境变量
     ├── requirements.txt
     └── .env.example          # 环境变量模板（勿将真实密钥提交到 Git）
 ```
@@ -110,12 +111,18 @@ cd tongqu-agent-backend
 python -m venv .venv
 source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-cp .env.example .env        # 再编辑 .env
-python agent_orchestrator.py
+cp .env.example .env        # 按模板填写百炼、阿里云与 GOOGLE_API_KEY
 ```
 
-- 开发联调建议先 **`USE_REAL_API=false`**，使用 `mock_data.py` 中按 **剪纸 / 水墨 / 皮影** 准备的占位内容，不消耗线上配额。
-- 接入真实服务时设 **`USE_REAL_API=true`**，并在 `.env` 中配置 **DashScope** 与 **阿里云** 相关变量；**NLS 应用 AppKey** 与 **RAM AccessKey** 不是同一种密钥，请勿混填。
+故事走 **DashScope（Qwen）**，草图模式先 **千问 VL** 读图，语音与文本安全走 **阿里云 NLS / Green**，配图可走 **官方 Gemini** 或 **OpenAI 兼容中转**（如易步云：设置 `GEMINI_OPENAI_BASE_URL`、`GEMINI_IMAGE_MODEL`）。详见 `tongqu-agent-backend/.env.example`。
+
+**HTTP 服务（给前端联调）**：
+
+```bash
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
+
+**前端指向后端**：在 `tongqu-magic-book/.env` 中设置 `VITE_API_BASE_URL=http://127.0.0.1:8000`，再 `npm run dev`。
 
 ### 推送到 GitHub（`https://github.com/shakkyy/tongqu`）
 
@@ -143,7 +150,7 @@ git push -u origin main
 
 - **意图优先**：优先保证体验闭环与儿童友好交互，再迭代模型与参数。
 - **安全第一**：任何生成路径默认经过安全策略；日志用于家长侧可追溯。
-- **接口一致**：Mock 与 Real 模式对外 **JSON 结构保持一致**，前端可无缝切换环境。
+- **接口稳定**：`/api/storybook/create` 对外 JSON 结构保持稳定，便于前端与多端对接。
 
 ---
 

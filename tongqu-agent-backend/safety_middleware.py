@@ -102,7 +102,7 @@ class SafetyMiddleware:
             return await self.image_api.check(image_url)
         # 本地模拟：默认通过
         await asyncio.sleep(0.01)
-        return {"passed": True, "risk_level": "low", "provider": "mock"}
+        return {"passed": True, "risk_level": "low", "provider": "local_fallback"}
 
     # ---------- 层4：价值观对齐 ----------
     async def align_values(self, story_text: str) -> str:

@@ -1,10 +1,7 @@
 """
-真实 API 客户端：DashScope（故事 + 文生图）+ 阿里云 Green（审核）+ NLS（语音）。
+真实 API 客户端：DashScope Qwen / 千问 VL + 阿里云 Green（审核）+ NLS（语音）。
 
-说明：
-- 绘本配图需要「静态图」：默认使用 DashScope 万相文生图（wanx-v*）。
-- wan2.6-i2v 为「图生视频」异步接口，与绘本静态页需求不同；如需视频可另接异步任务，此处不混用。
-- 密钥只从环境变量读取；无效时抛出 ApiKeyError，提示「API 密钥配置错误」。
+绘本配图由 Gemini 文生图单独提供（见 gemini_clients）；密钥只从环境变量读取。
 """
 
 from __future__ import annotations
@@ -19,11 +16,12 @@ import requests
 
 try:
     import dashscope
-    from dashscope import Generation, ImageSynthesis
+    from dashscope import Generation
+    from dashscope import MultiModalConversation
 except ImportError:  # pragma: no cover
     dashscope = None  # type: ignore
     Generation = None  # type: ignore
-    ImageSynthesis = None  # type: ignore
+    MultiModalConversation = None  # type: ignore
 
 try:
     from alibabacloud_green20220302.client import Client as Green20220302Client
@@ -63,8 +61,13 @@ class NlsRateLimitError(RuntimeError):
 
 
 def _require_dashscope() -> None:
-    if dashscope is None or Generation is None or ImageSynthesis is None:
+    if dashscope is None or Generation is None:
         raise RuntimeError("请先安装 dashscope：pip install dashscope")
+
+
+def _require_vl() -> None:
+    if dashscope is None or MultiModalConversation is None:
+        raise RuntimeError("请先安装 dashscope（含 MultiModalConversation）：pip install -U dashscope")
 
 
 def _is_key_like_invalid(resp: Any) -> bool:
@@ -103,21 +106,83 @@ def _extract_generation_text(resp: Any) -> str:
     raise RuntimeError(f"DashScope 返回无法解析: {resp}")
 
 
-def _extract_image_url(resp: Any) -> str:
-    if getattr(resp, "status_code", None) == 200 and resp.output:
-        results = getattr(resp.output, "results", None)
-        if results:
-            first = results[0]
-            url = getattr(first, "url", None)
-            if url is None and isinstance(first, dict):
-                url = first.get("url")
-            if url:
-                return str(url)
+def _extract_vl_text(resp: Any) -> str:
+    """千问 VL（MultiModalConversation）返回文本。"""
     if getattr(resp, "status_code", None) != 200:
         if _is_key_like_invalid(resp):
             raise ApiKeyError(API_KEY_ERROR)
-        raise RuntimeError(f"DashScope 图像生成失败: {resp}")
-    raise RuntimeError(f"DashScope 图像返回无法解析: {resp}")
+        raise RuntimeError(f"千问 VL 调用失败: {resp}")
+    out = getattr(resp, "output", None)
+    if not out:
+        raise RuntimeError(f"千问 VL 无 output: {resp}")
+    choices = getattr(out, "choices", None)
+    if choices:
+        msg = getattr(choices[0], "message", None)
+        if msg is not None:
+            content = getattr(msg, "content", None)
+            if isinstance(content, str) and content.strip():
+                return content.strip()
+            if isinstance(content, list):
+                parts: list[str] = []
+                for item in content:
+                    if isinstance(item, dict):
+                        t = item.get("text")
+                        if t:
+                            parts.append(str(t))
+                    elif isinstance(item, str):
+                        parts.append(item)
+                if parts:
+                    return "".join(parts).strip()
+    legacy = getattr(out, "text", None)
+    if legacy:
+        return str(legacy).strip()
+    raise RuntimeError(f"千问 VL 返回无法解析: {resp}")
+
+
+_SKETCH_VL_USER_PROMPT = (
+    "请用中文简要描述这张儿童手绘草图里画了什么、可能表达的主题或情感。"
+    "要求：3～8 句话，面向后续儿童绘本创作；避免技术术语；不要输出 JSON 或 Markdown 标题。"
+)
+
+
+class DashScopeQwenVLClient:
+    """
+    千问多模态：理解儿童草图，输出中文描述，供故事模型使用。
+    使用 DashScope MultiModalConversation（如 qwen-vl-plus）。
+    """
+
+    def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None) -> None:
+        self.api_key = api_key or CONFIG.DASHSCOPE_API_KEY
+        self.model = model or CONFIG.QWEN_VL_MODEL
+
+    async def describe_sketch(self, image_data_url: str) -> str:
+        if not self.api_key:
+            raise ApiKeyError(API_KEY_ERROR)
+        _require_vl()
+        img = (image_data_url or "").strip()
+        if not img:
+            raise RuntimeError("草图为空")
+        if not img.startswith("data:"):
+            img = f"data:image/png;base64,{img}"
+
+        def _call() -> str:
+            dashscope.api_key = self.api_key
+            assert MultiModalConversation is not None
+            resp = MultiModalConversation.call(
+                model=self.model,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"image": img},
+                            {"text": _SKETCH_VL_USER_PROMPT},
+                        ],
+                    }
+                ],
+            )
+            return _extract_vl_text(resp)
+
+        return await asyncio.to_thread(_call)
 
 
 class DashScopeQwenClient:
@@ -147,43 +212,6 @@ class DashScopeQwenClient:
                 result_format="message",
             )
             return _extract_generation_text(resp)
-
-        return await asyncio.to_thread(_call)
-
-
-class DashScopeWanxImageClient:
-    """
-    万相文生图（静态配图 URL）。
-    风格通过 prompt 前缀强化（剪纸/水墨/皮影）。
-    """
-
-    def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None) -> None:
-        self.api_key = api_key or CONFIG.DASHSCOPE_API_KEY
-        self.model = model or CONFIG.DASHSCOPE_IMAGE_MODEL
-
-    def _style_prefix(self, style: str) -> str:
-        mapping = {
-            "剪纸": "中国剪纸艺术风格，红色与金色点缀，平面层次，儿童绘本，明亮温暖，无恐怖元素，",
-            "水墨": "中国水墨画风格，留白与晕染，柔和笔触，儿童绘本，明亮温暖，无恐怖元素，",
-            "皮影": "中国传统皮影戏风格，剪影与暖色灯光，舞台感，儿童绘本，明亮温暖，无恐怖元素，",
-        }
-        return mapping.get(style, mapping["水墨"])
-
-    async def generate_image(self, prompt: str, style: str) -> str:
-        if not self.api_key:
-            raise ApiKeyError(API_KEY_ERROR)
-        _require_dashscope()
-        full_prompt = f"{self._style_prefix(style)}{prompt}"
-
-        def _call() -> str:
-            resp = ImageSynthesis.call(
-                api_key=self.api_key,
-                model=self.model,
-                prompt=full_prompt,
-                n=1,
-                size="1024*1024",
-            )
-            return _extract_image_url(resp)
 
         return await asyncio.to_thread(_call)
 
@@ -259,6 +287,9 @@ class AliyunGreenSafetyClient:
     async def scan_image(self, image_url: str) -> Dict[str, Any]:
         if not self.access_key_id or not self.access_key_secret:
             raise ApiKeyError(API_KEY_ERROR)
+        # Gemini 等返回 data:image/...;base64,...，Green 图片审核需可公网 URL，此处跳过机审。
+        if (image_url or "").strip().lower().startswith("data:"):
+            return {"passed": True, "risk": "low", "raw": {"skipped": "inline_data_url"}}
 
         def _call() -> Dict[str, Any]:
             try:

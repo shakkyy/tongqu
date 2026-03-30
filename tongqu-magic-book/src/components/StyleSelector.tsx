@@ -1,5 +1,5 @@
 import type { StoryStyle } from "../types";
-import { Scissors, Palette, Theater } from "lucide-react";
+import { Scissors, Palette, Theater, Smile } from "lucide-react";
 
 interface StyleOption {
   id: StoryStyle;
@@ -12,6 +12,7 @@ const STYLE_OPTIONS: StyleOption[] = [
   { id: "paper-cut", label: "剪纸风", icon: Scissors },
   { id: "ink-wash", label: "水墨画", icon: Palette },
   { id: "shadow-puppet", label: "皮影戏", icon: Theater },
+  { id: "comic", label: "漫画风", icon: Smile },
 ];
 
 interface StyleSelectorProps {
@@ -21,7 +22,7 @@ interface StyleSelectorProps {
 
 export function StyleSelector({ value, onChange }: StyleSelectorProps) {
   return (
-    <div className="grid grid-cols-3 gap-2">
+    <div className="grid grid-cols-2 gap-2">
       {STYLE_OPTIONS.map((option) => {
         const selected = option.id === value;
         const Icon = option.icon;
@@ -36,7 +37,9 @@ export function StyleSelector({ value, onChange }: StyleSelectorProps) {
                   ? "bg-theme-primary text-white shadow-[2px_3px_0px_#1A2B3C] z-10"
                   : option.id === "ink-wash"
                     ? "bg-theme-secondary text-white shadow-[2px_3px_0px_#1A2B3C] z-10"
-                    : "bg-theme-accent text-theme-text shadow-[2px_3px_0px_#1A2B3C] z-10"
+                    : option.id === "shadow-puppet"
+                      ? "bg-theme-accent text-theme-text shadow-[2px_3px_0px_#1A2B3C] z-10"
+                      : "bg-cn-azure text-white shadow-[2px_3px_0px_#1A2B3C] z-10"
                 : "bg-cn-paper text-cn-ink/70 shadow-sm"
             }`}
           >
