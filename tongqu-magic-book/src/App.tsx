@@ -1,29 +1,53 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { VoiceInput } from "./components/VoiceInput";
 import { StyleSelector } from "./components/StyleSelector";
 import { KeywordsSelector } from "./components/KeywordsSelector";
-import { SketchPad } from "./components/SketchPad";
+import { SketchPad, type SketchPadHandle } from "./components/SketchPad";
+import { StoryBookPanel } from "./components/StoryBookPanel";
+import { BookshelfModal } from "./components/BookshelfModal";
+import {
+  addBookshelfEntry,
+  loadBookshelf,
+  removeBookshelfEntry,
+  clearBookshelf,
+  type BookshelfEntry,
+} from "./lib/bookshelfStorage";
+import { buildKeywordsForApi, type KeywordSelectionPayload } from "./lib/keywordPayload";
 import type { StoryPage, StoryStyle } from "./types";
-import { Sparkles, Wand2, Volume2, ChevronLeft, ChevronRight, Download, Share2, Mic, Type, PenTool, RefreshCw, Plus, BookOpen } from "lucide-react";
+import { Sparkles, Wand2, Mic, Type, PenTool } from "lucide-react";
 
-const DEMO_STORY: StoryPage[] = [
+const API_BASE = (import.meta as unknown as { env: Record<string, string | undefined> }).env
+  .VITE_API_BASE_URL?.trim();
+
+
+const OFFLINE_DEMO: StoryPage[] = [
   {
     id: "p1",
-    title: "月下仙狐",
-    text: "灵狐衔着一盏琉璃灯，穿行在幽静的竹林深处，寻找传说中的仙缘。",
+    title: "云上小船",
+    text: "一片金色云朵像小船一样飘过山谷，小朋友们在草地上和它打招呼。",
     imageUrl: "https://images.unsplash.com/photo-1516715094483-75da7dee9758?auto=format&fit=crop&w=1200&q=80",
   },
   {
     id: "p2",
-    title: "九霄云阁",
-    text: "祥云化作一道长桥，灵狐踏云而行，探寻那座漂浮在九霄之上的空中楼阁。",
+    title: "彩虹桥",
+    text: "雨后的彩虹变成一座软软的桥，大家手拉手走过去，笑声像风铃一样清脆。",
     imageUrl: "https://images.unsplash.com/photo-1472396961693-142e6e269027?auto=format&fit=crop&w=1200&q=80",
   },
   {
     id: "p3",
-    title: "勇闯龙宫",
-    text: "碧波荡漾，深海之中龙宫隐现，灵狐凭借智慧与勇气，赢得了龙王的赞许。",
+    title: "晚安星星",
+    text: "月亮升起来，星星眨眼睛，今天的故事轻轻合上，明天再继续冒险。",
     imageUrl: "https://images.unsplash.com/photo-1504208434309-cb69f4fe52b0?auto=format&fit=crop&w=1200&q=80",
+  },
+];
+
+/** 已配置 API、尚未生成时 */
+const WAITING_PAGES: StoryPage[] = [
+  {
+    id: "wait",
+    title: "准备创作",
+    text: "在左侧选择关键词或保持默认灵感，挑选画风后点击「开始变魔术」，真实绘本将从后端生成并显示在这里。",
+    imageUrl: "https://images.unsplash.com/photo-1519682337058-a94d519337bc?auto=format&fit=crop&w=1200&q=80",
   },
 ];
 
@@ -34,46 +58,209 @@ export default function App() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const [style, setStyle] = useState<StoryStyle>("paper-cut");
+  const [keywordPayload, setKeywordPayload] = useState<KeywordSelectionPayload>(() => ({
+    theme: { tags: [], custom: "" },
+    character: { tags: [], custom: "" },
+    scene: { tags: [], custom: "" },
+  }));
+  const [remotePages, setRemotePages] = useState<StoryPage[] | null>(null);
+  const [apiError, setApiError] = useState<string | null>(null);
+  const [sketchSnapshotUrl, setSketchSnapshotUrl] = useState<string | null>(null);
+  const [sketchDescription, setSketchDescription] = useState("");
+  const [lastBookSource, setLastBookSource] = useState<"voice" | "keywords" | "sketch" | null>(null);
+  const sketchPadRef = useRef<SketchPadHandle>(null);
+  const [bookshelfOpen, setBookshelfOpen] = useState(false);
+  const [bookshelfItems, setBookshelfItems] = useState<BookshelfEntry[]>(() => loadBookshelf());
+
+  const refreshBookshelf = () => setBookshelfItems(loadBookshelf());
+
+  const canAddToShelf = useMemo(() => {
+    if (!remotePages?.length) return false;
+    return remotePages[0]?.id !== "wait";
+  }, [remotePages]);
+
+  const handleAddToBookshelf = useCallback(() => {
+    if (!remotePages?.length || remotePages[0]?.id === "wait") return;
+    const title = remotePages[0].title.split("·")[0]?.trim() || "未命名绘本";
+    const src: BookshelfEntry["mode"] =
+      lastBookSource === "sketch" ? "sketch" : lastBookSource === "keywords" ? "keywords" : "voice";
+    try {
+      addBookshelfEntry({
+        id: crypto.randomUUID(),
+        createdAt: Date.now(),
+        title,
+        coverUrl: remotePages[0]?.imageUrl ?? "",
+        pageCount: remotePages.length,
+        mode: src,
+        sketchThumb: lastBookSource === "sketch" ? sketchSnapshotUrl ?? undefined : undefined,
+        pages: remotePages.map((p) => ({ ...p })),
+      });
+      refreshBookshelf();
+    } catch (err) {
+      console.warn("书架保存失败（可能超出浏览器存储上限）", err);
+    }
+  }, [remotePages, lastBookSource, sketchSnapshotUrl]);
+
+  const onKeywordsChange = useCallback((p: KeywordSelectionPayload) => {
+    setKeywordPayload(p);
+  }, []);
+
+  const storyPages = remotePages ?? (API_BASE ? WAITING_PAGES : OFFLINE_DEMO);
+
+  const sketchSplitActive =
+    creationMode === "sketch" &&
+    (isGenerating ||
+      (lastBookSource === "sketch" && remotePages !== null && remotePages.length > 0));
 
   const progressText = useMemo(() => {
     if (!isGenerating) return "";
     if (creationMode === "sketch") return "魔法画笔正在将草图变为插画...";
     if (style === "paper-cut") return "神笔马良正在帮你剪纸哦...";
     if (style === "ink-wash") return "小墨童正在挥毫泼墨...";
+    if (style === "comic") return "漫画小精灵正在勾线涂色...";
     return "皮影爷爷正在点亮皮影灯...";
   }, [isGenerating, style, creationMode]);
 
-  useEffect(() => {
-    if (!isGenerating) return;
-    const timer = window.setTimeout(() => {
-      setIsGenerating(false);
-      autoPlayPage(0);
-    }, 2200);
-    return () => window.clearTimeout(timer);
-  }, [isGenerating]);
-
-  const autoPlayPage = (index: number) => {
-    setActiveIndex(index);
-    const utterance = new SpeechSynthesisUtterance(DEMO_STORY[index].text);
+  const speakPage = (pages: StoryPage[], index: number) => {
+    const page = pages[index];
+    if (!page) return;
+    window.speechSynthesis.cancel();
+    if (page.audioUrl && page.audioUrl.startsWith("data:audio")) {
+      const a = new Audio(page.audioUrl);
+      void a.play().catch(() => {
+        const utterance = new SpeechSynthesisUtterance(page.text);
+        utterance.lang = "zh-CN";
+        utterance.rate = 0.95;
+        window.speechSynthesis.speak(utterance);
+      });
+      return;
+    }
+    const utterance = new SpeechSynthesisUtterance(page.text);
     utterance.lang = "zh-CN";
     utterance.rate = 0.95;
-    window.speechSynthesis.cancel();
     window.speechSynthesis.speak(utterance);
   };
 
-  const handleNext = () => {
-    if (activeIndex < DEMO_STORY.length - 1) {
-      setActiveIndex(activeIndex + 1);
-    }
+  const autoPlayPage = (index: number) => {
+    setActiveIndex(index);
+    speakPage(storyPages, index);
   };
 
-  const handlePrev = () => {
-    if (activeIndex > 0) {
-      setActiveIndex(activeIndex - 1);
+  const resetSketchSession = () => {
+    setSketchSnapshotUrl(null);
+    if (lastBookSource === "sketch") {
+      setRemotePages(null);
+      setLastBookSource(null);
     }
+    setActiveIndex(0);
   };
 
-  const activePage = DEMO_STORY[activeIndex];
+  const openBookFromShelf = (entry: BookshelfEntry) => {
+    setRemotePages(entry.pages.map((p) => ({ ...p })));
+    setActiveIndex(0);
+    setLastBookSource(entry.mode);
+    setSketchSnapshotUrl(entry.sketchThumb ?? null);
+    setCreationMode(entry.mode);
+  };
+
+  const handleGenerate = async () => {
+    setApiError(null);
+    if (!API_BASE) {
+      setApiError("未配置 VITE_API_BASE_URL。请在 tongqu-magic-book/.env 中设置，例如 http://127.0.0.1:8000 后重启 npm run dev。");
+      return;
+    }
+    let sketchImageForApi: string | undefined;
+    let sketchSnapForShelf: string | undefined;
+    if (creationMode === "sketch") {
+      const snap = sketchPadRef.current?.getDataURL() ?? null;
+      setSketchSnapshotUrl(snap);
+      sketchSnapForShelf = snap ?? undefined;
+      if (snap) sketchImageForApi = snap;
+      setRemotePages(null);
+    }
+
+    setIsGenerating(true);
+    try {
+      const sketchNote = sketchDescription.trim();
+      const kw =
+        creationMode === "sketch"
+          ? `儿童手绘画本·根据孩子草图与理解结果创作积极向上的小故事${
+              sketchNote ? `\n\n【孩子描述】${sketchNote}` : ""
+            }`
+          : creationMode === "keywords"
+            ? buildKeywordsForApi(keywordPayload)
+            : creationMode === "voice" && isListening
+              ? "语音灵感"
+              : "孙悟空+月亮";
+      const base = API_BASE.replace(/\/$/, "");
+      const res = await fetch(`${base}/api/storybook/create`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          keywords: kw,
+          style,
+          ...(sketchImageForApi ? { sketch_image_base64: sketchImageForApi } : {}),
+          ...(creationMode === "sketch" && sketchNote ? { sketch_text: sketchNote } : {}),
+        }),
+      });
+      const data = (await res.json()) as {
+        ok?: boolean;
+        error?: string;
+        detail?: string;
+        title?: string;
+        scenes?: { text: string }[];
+        image_urls?: string[];
+        audio_urls?: string[];
+      };
+      if (!data.ok) {
+        setApiError(data.detail || data.error || `请求失败（HTTP ${res.status}）`);
+        if (creationMode === "sketch") setSketchSnapshotUrl(null);
+        return;
+      }
+      if (data.scenes?.length && data.image_urls?.length && data.title) {
+        const scenes = data.scenes;
+        const imgs = data.image_urls;
+        const n = Math.min(scenes.length, imgs.length);
+        const pages: StoryPage[] = scenes.slice(0, n).map((s, i) => ({
+          id: `p${i + 1}`,
+          title: i === 0 ? data.title! : `${data.title} · 第${i + 1}页`,
+          text: s.text,
+          imageUrl: imgs[i] ?? "",
+          audioUrl: data.audio_urls?.[i],
+        }));
+        setRemotePages(pages);
+        setActiveIndex(0);
+        const src: BookshelfEntry["mode"] =
+          creationMode === "sketch" ? "sketch" : creationMode === "keywords" ? "keywords" : "voice";
+        setLastBookSource(src);
+        try {
+          addBookshelfEntry({
+            id: crypto.randomUUID(),
+            createdAt: Date.now(),
+            title: data.title!,
+            coverUrl: pages[0]?.imageUrl ?? "",
+            pageCount: pages.length,
+            mode: src,
+            sketchThumb: creationMode === "sketch" ? sketchSnapForShelf : undefined,
+            pages: pages.map((p) => ({ ...p })),
+          });
+          refreshBookshelf();
+        } catch (err) {
+          console.warn("书架保存失败（可能超出浏览器存储上限）", err);
+        }
+        queueMicrotask(() => speakPage(pages, 0));
+      } else {
+        setApiError("后端返回数据不完整（缺少 title / scenes / image_urls）");
+        if (creationMode === "sketch") setSketchSnapshotUrl(null);
+      }
+    } catch (e) {
+      console.error(e);
+      setApiError(e instanceof Error ? e.message : "网络错误，请确认后端已启动");
+      if (creationMode === "sketch") setSketchSnapshotUrl(null);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   return (
     <div data-theme={theme === "default" ? undefined : theme} className="h-screen bg-theme-bg bg-paper-texture font-classical text-theme-text flex flex-col overflow-hidden">
@@ -88,7 +275,14 @@ export default function App() {
           </h1>
         </div>
         <div className="flex items-center gap-3">
-          <button className="text-xs font-bold border-2 border-theme-text rounded-full px-3 py-1 bg-theme-bg hover:bg-theme-secondary hover:text-white transition-colors">
+          <button
+            type="button"
+            onClick={() => {
+              refreshBookshelf();
+              setBookshelfOpen(true);
+            }}
+            className="text-xs font-bold border-2 border-theme-text rounded-full px-3 py-1 bg-theme-bg hover:bg-theme-secondary hover:text-white transition-colors"
+          >
             我的书架
           </button>
           <div className="w-8 h-8 rounded-full border-2 border-theme-text bg-theme-success overflow-hidden">
@@ -155,15 +349,46 @@ export default function App() {
                 
                 <div className={creationMode === "keywords" ? "" : "hidden"}>
                   <div className="bg-cn-paper/30 border-2 border-dashed border-cn-ink/30 p-2 rounded-lg scale-[0.85] origin-top">
-                    <KeywordsSelector />
+                    <KeywordsSelector onSelectionChange={onKeywordsChange} />
                   </div>
                 </div>
 
                 <div className={creationMode === "sketch" ? "" : "hidden"}>
-                  <div className="bg-cn-azure/10 border-2 border-dashed border-cn-azure p-3 rounded-lg text-center flex flex-col items-center justify-center gap-1 min-h-[100px]">
-                    <PenTool className="w-4 h-4 text-cn-azure animate-bounce" />
-                    <p className="text-cn-azure font-bold text-[11px] mt-1">魔法画板就绪</p>
-                  </div>
+                  {sketchSplitActive && sketchSnapshotUrl ? (
+                    <div className="bg-cn-azure/10 border-2 border-dashed border-cn-azure p-2 rounded-lg flex flex-col items-center gap-2 min-h-[100px]">
+                      <p className="text-cn-azure font-bold text-[10px] w-full text-left">我的草图</p>
+                      <img
+                        src={sketchSnapshotUrl}
+                        alt="孩子画的草图"
+                        className="w-full max-h-[112px] object-contain rounded-md border border-cn-ink/15 bg-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={resetSketchSession}
+                        className="w-full text-[10px] font-bold py-1.5 rounded-lg border-2 border-cn-ink bg-white hover:bg-cn-yellow transition-colors"
+                      >
+                        重新画一张
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="bg-cn-azure/10 border-2 border-dashed border-cn-azure p-3 rounded-lg text-center flex flex-col items-center justify-center gap-1 min-h-[100px]">
+                      <PenTool className="w-4 h-4 text-cn-azure animate-bounce" />
+                      <p className="text-cn-azure font-bold text-[11px] mt-1">魔法画板就绪</p>
+                      <p className="text-cn-ink/50 text-[9px] px-1">右侧大画布作画</p>
+                    </div>
+                  )}
+                  <label className="flex flex-col gap-1 mt-2">
+                    <span className="text-[10px] font-bold text-cn-ink/80">一句话说说你的画（可选）</span>
+                    <textarea
+                      value={sketchDescription}
+                      onChange={(e) => setSketchDescription(e.target.value.slice(0, 300))}
+                      rows={2}
+                      maxLength={300}
+                      placeholder="例如：小熊在天上飞"
+                      disabled={isGenerating}
+                      className="w-full text-[11px] rounded-lg border-2 border-cn-azure/40 bg-white p-2 text-cn-ink placeholder:text-cn-ink/40 resize-none disabled:opacity-60"
+                    />
+                  </label>
                 </div>
               </div>
             </div>
@@ -180,10 +405,20 @@ export default function App() {
             </div>
 
             {/* Generate Action */}
-            <div className="pt-1">
+            <div className="pt-1 flex flex-col gap-2">
+              {apiError && (
+                <p className="text-[11px] text-red-600 font-bold leading-snug border border-red-200 bg-red-50 rounded-lg px-2 py-1.5">
+                  {apiError}
+                </p>
+              )}
+              {!API_BASE && (
+                <p className="text-[10px] text-cn-ink/60">
+                  提示：配置 VITE_API_BASE_URL 并启动 tongqu-agent-backend 后可调用真实 API。
+                </p>
+              )}
               <button
                 type="button"
-                onClick={() => setIsGenerating(true)}
+                onClick={handleGenerate}
                 disabled={isGenerating}
                 className={`w-full flex items-center justify-center gap-2 border-handdrawn px-4 py-2.5 text-base font-bold transition-all ${
                   isGenerating ? "bg-cn-paper opacity-80 text-cn-ink" : "bg-cn-red text-white shadow-[1px_2px_0px_#1A2B3C] hover:translate-y-[-1px]"
@@ -196,140 +431,49 @@ export default function App() {
           </div>
         </aside>
 
-        {/* Right Area: Story Stage - Flexible scaling */}
+        {/* 右侧：草图模式始终挂载画板（hidden 保留画布），分栏时同区展示绘本 */}
         <section className="flex-1 flex flex-col bg-white border-handdrawn p-4 shadow-kid relative overflow-hidden min-h-0 min-w-0">
-          
-          <div className={creationMode === "sketch" ? "flex-1 flex flex-col h-full min-h-0" : "hidden"}>
-            <SketchPad />
-          </div>
-          
-          <div className={creationMode === "sketch" ? "hidden" : "flex-1 flex flex-col h-full min-h-0"}>
-            <div className="flex items-center justify-between mb-2 flex-shrink-0">
-              <div className="flex items-center gap-2">
-                <BookOpen className="w-4 h-4 text-cn-ink" />
-                <h2 className="text-base font-bold text-cn-ink font-classical truncate max-w-[200px] sm:max-w-none">
-                  {isGenerating ? "新故事绘制中..." : "《寻找月亮的奇妙旅程》"}
-                </h2>
-              </div>
-              <div className="flex items-center gap-2">
-                <button className="flex items-center gap-1 border-2 border-cn-ink rounded-full bg-cn-paper px-2 py-0.5 font-bold text-[10px] hover:bg-cn-azure hover:text-white transition-colors">
-                  <Share2 className="w-3 h-3" /> 分享
-                </button>
-                <button className="flex items-center gap-1 border-2 border-cn-ink rounded-full bg-cn-yellow px-2 py-0.5 font-bold text-cn-ink text-[10px] hover:bg-cn-red hover:text-white transition-colors">
-                  <Download className="w-3 h-3" /> 导出
-                </button>
-              </div>
+          {creationMode === "sketch" && (
+            <div
+              className={
+                sketchSplitActive
+                  ? "hidden"
+                  : "flex-1 flex flex-col h-full min-h-0 min-w-0"
+              }
+              aria-hidden={sketchSplitActive}
+            >
+              <SketchPad ref={sketchPadRef} isGenerating={isGenerating} progressText={progressText} />
             </div>
-
-            {/* Viewer Stage - Immersive Full Stage */}
-            <div className="flex-1 relative flex items-center justify-center bg-cn-paper/30 rounded-xl border-2 border-cn-ink/10 mb-3 overflow-hidden min-h-0">
-              
-              {/* Navigation Arrows - Floating on edges */}
-              <button 
-                onClick={handlePrev}
-                disabled={activeIndex === 0 || isGenerating}
-                className={`absolute left-3 z-40 p-2 rounded-full border-2 border-cn-ink bg-white/95 shadow-sm disabled:opacity-0 transition-all hover:bg-cn-yellow hover:scale-110 active:scale-95`}
-              >
-                <ChevronLeft className="w-6 h-6 text-cn-ink" />
-              </button>
-              
-              <button 
-                onClick={handleNext}
-                disabled={activeIndex === DEMO_STORY.length - 1 || isGenerating}
-                className={`absolute right-3 z-40 p-2 rounded-full border-2 border-cn-ink bg-white/95 shadow-sm disabled:opacity-0 transition-all hover:bg-cn-yellow hover:scale-110 active:scale-95`}
-              >
-                <ChevronRight className="w-6 h-6 text-cn-ink" />
-              </button>
-
-              {/* Active Story Page - Full Cover Style */}
-              {!isGenerating ? (
-                <div className="w-full h-full relative bg-white flex-shrink-0">
-                  <div className="w-full h-full relative">
-                    <img src={activePage.imageUrl} className="w-full h-full object-cover" alt={activePage.title} />
-                    <div className="absolute inset-0 bg-paper-texture opacity-20 pointer-events-none mix-blend-multiply" />
-                    
-                    {/* Top Overlay - Floating Badge */}
-                    <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-1">
-                      <div className="bg-cn-ink/80 backdrop-blur-md px-4 py-1.5 rounded-lg border border-white/20 shadow-lg">
-                        <h3 className="text-sm font-bold text-white font-classical tracking-[0.25em]">{activePage.title}</h3>
-                      </div>
-                      <span className="text-[9px] font-black bg-white/90 text-cn-ink px-2 py-0.5 rounded-full border border-cn-ink shadow-sm">{activeIndex + 1} / {DEMO_STORY.length}</span>
-                    </div>
-
-                    {/* Bottom Dialogue Box - Wide Galgame Style */}
-                    <div className="absolute bottom-4 left-4 right-4 lg:left-8 lg:right-8 z-20">
-                      <div className="bg-white/90 backdrop-blur-xl border-2 border-cn-ink rounded-2xl p-4 lg:p-5 shadow-2xl relative overflow-hidden group/textbox">
-                        <div className="absolute inset-1 border border-dashed border-cn-ink/10 rounded-xl pointer-events-none" />
-                        
-                        <div className="relative z-10 flex flex-col gap-2">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <div className="w-1.5 h-4 bg-cn-red rounded-full" />
-                              <span className="text-[10px] font-black text-cn-ink uppercase tracking-widest">灵语者</span>
-                            </div>
-                            <button onClick={() => autoPlayPage(activeIndex)} className="flex items-center gap-1 px-2 py-1 border border-cn-ink rounded-full bg-cn-yellow text-cn-ink text-[9px] font-bold hover:bg-cn-green hover:text-white transition-colors">
-                              <Volume2 className="w-3 h-3" /> 语音
-                            </button>
-                          </div>
-                          <div 
-                            contentEditable 
-                            suppressContentEditableWarning 
-                            className="text-base lg:text-lg leading-relaxed text-cn-ink font-medium outline-none max-h-[4.5em] overflow-y-auto hide-scrollbar"
-                          >
-                            {activePage.text}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    {/* Compact Corner Tools */}
-                    <div className="absolute top-4 right-4 z-40 flex flex-col gap-2 opacity-60 hover:opacity-100 transition-opacity">
-                      <button className="p-2 bg-white/90 rounded-full border border-cn-ink shadow-sm hover:bg-cn-azure hover:text-white transition-all hover:scale-110 group/btn">
-                        <RefreshCw className="w-4 h-4 text-cn-ink" />
-                        <span className="absolute right-full mr-2 top-1/2 -translate-y-1/2 bg-cn-ink text-white text-[10px] px-2 py-0.5 rounded opacity-0 group-hover/btn:opacity-100 whitespace-nowrap">续写</span>
-                      </button>
-                      <button className="p-2 bg-white/90 rounded-full border border-cn-ink shadow-sm hover:bg-cn-yellow transition-all hover:scale-110 group/btn">
-                        <Wand2 className="w-4 h-4 text-cn-red" />
-                        <span className="absolute right-full mr-2 top-1/2 -translate-y-1/2 bg-cn-ink text-white text-[10px] px-2 py-0.5 rounded opacity-0 group-hover/btn:opacity-100 whitespace-nowrap">替换</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center gap-4 p-6">
-                  <div className="w-16 h-16 rounded-full bg-cn-yellow/20 flex items-center justify-center border-2 border-dashed border-cn-yellow animate-spin">
-                    <Wand2 className="w-8 h-8 text-cn-yellow animate-pulse" />
-                  </div>
-                  <p className="text-xl font-classical font-bold text-cn-ink tracking-widest text-center">{progressText}</p>
-                </div>
-              )}
-            </div>
-
-            {/* Bottom Thumbnails - Horizontal scroll only if needed */}
-            <div className="h-20 flex items-center gap-3 overflow-x-auto pb-1 px-1 hide-scrollbar flex-shrink-0">
-              {DEMO_STORY.map((page, idx) => (
-                <button
-                  key={page.id}
-                  onClick={() => setActiveIndex(idx)}
-                  className={`relative flex-shrink-0 h-14 aspect-[4/3] border-2 rounded-lg overflow-hidden transition-all ${
-                    activeIndex === idx 
-                      ? "border-cn-red shadow-sm scale-105 z-10" 
-                      : "border-cn-ink opacity-60 hover:opacity-100"
-                  }`}
-                >
-                  <img src={page.imageUrl} className="w-full h-full object-cover" alt="thumbnail" />
-                  <div className="absolute bottom-0 left-0 right-0 bg-cn-ink/60 backdrop-blur-sm text-white text-[8px] font-bold py-0.5 px-1">
-                    P{idx + 1}
-                  </div>
-                </button>
-              ))}
-              <button className="flex-shrink-0 h-14 aspect-[4/3] border-2 border-dashed border-cn-ink/40 rounded-lg flex flex-col items-center justify-center text-cn-ink/50 hover:bg-cn-paper transition-colors">
-                <Plus className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
+          )}
+          {(creationMode !== "sketch" || sketchSplitActive) && (
+            <StoryBookPanel
+              storyPages={storyPages}
+              activeIndex={activeIndex}
+              setActiveIndex={setActiveIndex}
+              isGenerating={isGenerating}
+              forceLoadingOnly={creationMode === "sketch" && isGenerating}
+              progressText={progressText}
+              onSpeakPage={(i) => autoPlayPage(i)}
+              onAddToBookshelf={canAddToShelf ? handleAddToBookshelf : undefined}
+            />
+          )}
         </section>
       </main>
+
+      <BookshelfModal
+        open={bookshelfOpen}
+        onClose={() => setBookshelfOpen(false)}
+        items={bookshelfItems}
+        onRemove={(id) => {
+          removeBookshelfEntry(id);
+          refreshBookshelf();
+        }}
+        onClearAll={() => {
+          clearBookshelf();
+          refreshBookshelf();
+        }}
+        onOpenBook={openBookFromShelf}
+      />
     </div>
   );
 }
