@@ -1,0 +1,64 @@
+{
+    "version": "1.0.0",
+    "categories": {
+      "shanhaijing": {
+        "name": "山海经",
+        "description": "上古神话与奇珍异兽",
+        "age_range": "6-12",
+        "tags": ["神话", "神兽", "探险"]
+      },
+      "xiyouji": {
+        "name": "西游记",
+        "description": "唐僧师徒西天取经的故事",
+        "age_range": "5-10",
+        "tags": ["历险", "团队", "成长"]
+      },
+      "myths-legends": {
+        "name": "神话传说",
+        "description": "创世神话与英雄传说",
+        "age_range": "4-10",
+        "tags": ["创世", "英雄", "自然"]
+      },
+      "folktales": {
+        "name": "民间故事",
+        "description": "传统民间传说与寓言",
+        "age_range": "5-12",
+        "tags": ["民间", "智慧", "传统"]
+      }
+    },
+    "difficulty": {
+      "easy": {
+        "name": "简单",
+        "age": "4-6岁",
+        "word_count": "300-500字",
+        "features": ["短句", "重复句式", "简单情节"]
+      },
+      "medium": {
+        "name": "中等",
+        "age": "6-8岁",
+        "word_count": "500-1000字",
+        "features": ["复合句", "完整情节", "简单对话"]
+      },
+      "hard": {
+        "name": "较难",
+        "age": "8-12岁",
+        "word_count": "1000-1500字",
+        "features": ["复杂情节", "人物塑造", "深层寓意"]
+      }
+    },
+    "themes": [
+      "勇气与坚持",
+      "智慧与谋略",
+      "善良与助人",
+      "孝道与亲情",
+      "友谊与合作",
+      "自然与环保"
+    ],
+    "characters": [
+      "神仙",
+      "凡人英雄",
+      "神兽灵禽",
+      "妖怪精魅",
+      "历史人物"
+    ]
+  }
