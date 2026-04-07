@@ -13,6 +13,10 @@ import urllib.parse
 from typing import Any, Dict, Optional
 
 import requests
+try:
+    from openai import OpenAI
+except ImportError:  # pragma: no cover
+    OpenAI = None  # type: ignore
 
 try:
     import dashscope
@@ -61,10 +65,10 @@ class NlsRateLimitError(RuntimeError):
 
 
 def _apply_dashscope_base_url() -> None:
-    """默认华北2（北京）；若 .env 覆盖则为其它地域网关。"""
+    """给 VL 调用设置原生 DashScope 网关（非 compatible-mode）。"""
     if dashscope is None:
         return
-    dashscope.base_http_api_url = CONFIG.DASHSCOPE_BASE_HTTP_API_URL
+    dashscope.base_http_api_url = CONFIG.DASHSCOPE_VL_BASE_HTTP_API_URL
 
 
 def _require_dashscope() -> None:
@@ -165,7 +169,6 @@ class DashScopeQwenVLClient:
     async def describe_sketch(self, image_data_url: str) -> str:
         if not self.api_key:
             raise ApiKeyError(API_KEY_ERROR)
-        _require_vl()
         img = (image_data_url or "").strip()
         if not img:
             raise RuntimeError("草图为空")
@@ -173,6 +176,46 @@ class DashScopeQwenVLClient:
             img = f"data:image/png;base64,{img}"
 
         def _call() -> str:
+            compat_url = CONFIG.DASHSCOPE_COMPAT_BASE_URL
+
+            # 1) 优先走 OpenAI 兼容（与官方 compatible-mode 示例一致）
+            if compat_url:
+                if OpenAI is None:
+                    raise RuntimeError("请先安装 openai：pip install openai")
+                client = OpenAI(api_key=self.api_key, base_url=compat_url)
+                resp = client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "image_url", "image_url": {"url": img}},
+                                {"type": "text", "text": _SKETCH_VL_USER_PROMPT},
+                            ],
+                        }
+                    ],
+                )
+                if not resp.choices:
+                    raise RuntimeError(f"OpenAI兼容VL返回为空: {resp}")
+                content = resp.choices[0].message.content
+                if isinstance(content, str):
+                    text = content.strip()
+                    if text:
+                        return text
+                if isinstance(content, list):
+                    parts: list[str] = []
+                    for item in content:
+                        if isinstance(item, dict):
+                            t = item.get("text")
+                            if t:
+                                parts.append(str(t))
+                    text = "".join(parts).strip()
+                    if text:
+                        return text
+                raise RuntimeError(f"OpenAI兼容VL返回无法解析: {resp}")
+
+            # 2) 兜底：走原生 DashScope MultiModalConversation
+            _require_vl()
             _apply_dashscope_base_url()
             dashscope.api_key = self.api_key
             assert MultiModalConversation is not None
@@ -203,9 +246,32 @@ class DashScopeQwenClient:
     async def generate(self, prompt: str) -> str:
         if not self.api_key:
             raise ApiKeyError(API_KEY_ERROR)
-        _require_dashscope()
 
         def _call() -> str:
+            compat_url = CONFIG.DASHSCOPE_COMPAT_BASE_URL
+
+            # 1) 优先走 OpenAI 兼容（解决 compatible-mode 下 Generation.call 的 URL 报错）
+            if compat_url:
+                if OpenAI is None:
+                    raise RuntimeError("请先安装 openai：pip install openai")
+                client = OpenAI(api_key=self.api_key, base_url=compat_url)
+                resp = client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "你是儿童绘本助手，只输出合法 JSON，不要输出多余解释。",
+                        },
+                        {"role": "user", "content": prompt},
+                    ],
+                )
+                text = (resp.choices[0].message.content or "").strip() if resp.choices else ""
+                if not text:
+                    raise RuntimeError(f"OpenAI兼容文本生成返回为空: {resp}")
+                return text
+
+            # 2) 兜底：走原生 DashScope Generation
+            _require_dashscope()
             _apply_dashscope_base_url()
             dashscope.api_key = self.api_key
             resp = Generation.call(

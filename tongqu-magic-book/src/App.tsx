@@ -53,6 +53,15 @@ const WAITING_PAGES: StoryPage[] = [
   },
 ];
 
+function makeBookshelfFingerprint(title: string, pages: StoryPage[]): string {
+  const normalizedTitle = (title || "").trim();
+  const body = pages
+    .map((p) => (p.text || "").replace(/\s+/g, " ").trim())
+    .join("|")
+    .slice(0, 4000);
+  return `${normalizedTitle}::${pages.length}::${body}`;
+}
+
 export default function App() {
   const [theme] = useState<"default" | "spring">("default");
   const [creationMode, setCreationMode] = useState<"voice" | "keywords" | "sketch">("voice");
@@ -71,7 +80,8 @@ export default function App() {
   const [lastBookSource, setLastBookSource] = useState<"voice" | "keywords" | "sketch" | null>(null);
   const sketchPadRef = useRef<SketchPadHandle>(null);
   const [bookshelfOpen, setBookshelfOpen] = useState(false);
-  const [bookshelfItems, setBookshelfItems] = useState<BookshelfEntry[]>(() => loadBookshelf());
+  const [bookshelfItems, setBookshelfItems] = useState<BookshelfEntry[]>([]);
+  const [bookshelfNotice, setBookshelfNotice] = useState<string | null>(null);
 
   const {
     isListening: voiceListening,
@@ -107,20 +117,42 @@ export default function App() {
     }
   }, [creationMode, voiceListening, toggleVoiceListening]);
 
-  const refreshBookshelf = () => setBookshelfItems(loadBookshelf());
+  const refreshBookshelf = useCallback(async () => {
+    const items = await loadBookshelf();
+    setBookshelfItems(items);
+  }, []);
+
+  useEffect(() => {
+    void refreshBookshelf();
+  }, [refreshBookshelf]);
+
+  useEffect(() => {
+    if (!bookshelfNotice) return;
+    const t = window.setTimeout(() => setBookshelfNotice(null), 1800);
+    return () => window.clearTimeout(t);
+  }, [bookshelfNotice]);
 
   const canAddToShelf = useMemo(() => {
     if (!remotePages?.length) return false;
     return remotePages[0]?.id !== "wait";
   }, [remotePages]);
 
-  const handleAddToBookshelf = useCallback(() => {
+  const handleAddToBookshelf = useCallback(async () => {
     if (!remotePages?.length || remotePages[0]?.id === "wait") return;
     const title = remotePages[0].title.split("·")[0]?.trim() || "未命名绘本";
+    const currentFp = makeBookshelfFingerprint(title, remotePages);
     const src: BookshelfEntry["mode"] =
       lastBookSource === "sketch" ? "sketch" : lastBookSource === "keywords" ? "keywords" : "voice";
     try {
-      addBookshelfEntry({
+      const existing = await loadBookshelf();
+      const exists = existing.some(
+        (e) => makeBookshelfFingerprint(e.title, e.pages) === currentFp
+      );
+      if (exists) {
+        setBookshelfNotice("这本绘本已在书架中");
+        return;
+      }
+      await addBookshelfEntry({
         id: crypto.randomUUID(),
         createdAt: Date.now(),
         title,
@@ -130,11 +162,13 @@ export default function App() {
         sketchThumb: lastBookSource === "sketch" ? sketchSnapshotUrl ?? undefined : undefined,
         pages: remotePages.map((p) => ({ ...p })),
       });
-      refreshBookshelf();
+      await refreshBookshelf();
+      setBookshelfNotice("已添加到书架");
     } catch (err) {
       console.warn("书架保存失败（可能超出浏览器存储上限）", err);
+      setBookshelfNotice("添加失败：书架空间不足");
     }
-  }, [remotePages, lastBookSource, sketchSnapshotUrl]);
+  }, [remotePages, lastBookSource, sketchSnapshotUrl, refreshBookshelf]);
 
   const onKeywordsChange = useCallback((p: KeywordSelectionPayload) => {
     setKeywordPayload(p);
@@ -205,11 +239,9 @@ export default function App() {
       return;
     }
     let sketchImageForApi: string | undefined;
-    let sketchSnapForShelf: string | undefined;
     if (creationMode === "sketch") {
       const snap = sketchPadRef.current?.getDataURL() ?? null;
       setSketchSnapshotUrl(snap);
-      sketchSnapForShelf = snap ?? undefined;
       if (!snap) {
         setApiError("未能读取画板图像（画板可能尚未就绪）。请确认已切换到「草图」且右侧画板可见，稍后再试。");
         return;
@@ -281,21 +313,6 @@ export default function App() {
         const src: BookshelfEntry["mode"] =
           creationMode === "sketch" ? "sketch" : creationMode === "keywords" ? "keywords" : "voice";
         setLastBookSource(src);
-        try {
-          addBookshelfEntry({
-            id: crypto.randomUUID(),
-            createdAt: Date.now(),
-            title: data.title!,
-            coverUrl: pages[0]?.imageUrl ?? "",
-            pageCount: pages.length,
-            mode: src,
-            sketchThumb: creationMode === "sketch" ? sketchSnapForShelf : undefined,
-            pages: pages.map((p) => ({ ...p })),
-          });
-          refreshBookshelf();
-        } catch (err) {
-          console.warn("书架保存失败（可能超出浏览器存储上限）", err);
-        }
         queueMicrotask(() => speakPage(pages, 0));
       } else {
         setApiError("后端返回数据不完整（缺少 title / scenes / image_urls）");
@@ -326,7 +343,7 @@ export default function App() {
           <button
             type="button"
             onClick={() => {
-              refreshBookshelf();
+              void refreshBookshelf();
               setBookshelfOpen(true);
             }}
             className="text-xs font-bold border-2 border-theme-text rounded-full px-3 py-1 bg-theme-bg hover:bg-theme-secondary hover:text-white transition-colors"
@@ -425,7 +442,7 @@ export default function App() {
                               rows={4}
                               maxLength={2000}
                               disabled={isGenerating}
-                              placeholder="点麦克风说话，结束后文字出现在此；有识别错误内容可以直接修改，也可直接打字输入灵感。输入结束后点击「开始变魔术」按钮开始创作。"
+                              placeholder="点麦克风说话，结束后文字出现在此；输入结束后点击「开始变魔术」按钮开始创作。"
                               className="w-full text-[11px] rounded-lg border-2 border-cn-ink/25 bg-white p-2 text-cn-ink placeholder:text-cn-ink/40 resize-none leading-relaxed disabled:opacity-60"
                             />
                           </label>
@@ -542,7 +559,7 @@ export default function App() {
               forceLoadingOnly={creationMode === "sketch" && isGenerating}
               progressText={progressText}
               onSpeakPage={(i) => autoPlayPage(i)}
-              onAddToBookshelf={canAddToShelf ? handleAddToBookshelf : undefined}
+              onAddToBookshelf={canAddToShelf ? () => void handleAddToBookshelf() : undefined}
             />
           )}
         </section>
@@ -553,15 +570,20 @@ export default function App() {
         onClose={() => setBookshelfOpen(false)}
         items={bookshelfItems}
         onRemove={(id) => {
-          removeBookshelfEntry(id);
-          refreshBookshelf();
+          void removeBookshelfEntry(id).then(() => refreshBookshelf());
         }}
         onClearAll={() => {
-          clearBookshelf();
-          refreshBookshelf();
+          void clearBookshelf().then(() => refreshBookshelf());
         }}
         onOpenBook={openBookFromShelf}
       />
+      {bookshelfNotice && (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-[120] pointer-events-none">
+          <div className="text-[12px] text-emerald-700 font-bold leading-snug border border-emerald-200 bg-emerald-50 rounded-full px-4 py-2 shadow-soft">
+            {bookshelfNotice}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

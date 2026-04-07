@@ -55,7 +55,7 @@ async def health() -> dict[str, str]:
 
 @app.websocket("/api/asr/ws")
 async def asr_realtime_ws(websocket: WebSocket) -> None:
-    """语音子模块：qwen3-asr-flash-realtime（Omni Realtime）流式识别。"""
+    """语音子模块：收 PCM 音频后调用 qwen3-asr-flash（OpenAI兼容）转写。"""
     await websocket.accept()
     from services.asr_realtime import AsrRealtimeBridge, require_asr_sdk
 

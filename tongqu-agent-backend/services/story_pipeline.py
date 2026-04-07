@@ -118,19 +118,28 @@ class StorybookPipeline:
         return f"""
 {system_prompt}
 
-并请基于以下要求输出严格 JSON：
-1) 年龄适配：3-10岁可读，语言温暖，句式简洁；
-2) 内容风格：中国风，视觉风格偏向“{style}”；
-3) 价值观：积极向上，强调勇气、合作、善良、诚信；
-4) 每个场景的 image_prompt 必须用中文描述画面，且必须与画风「{style}」一致，不要写与之冲突的技法词：
-   - 水墨：写意、留白、墨色浓淡、晕染、山水/物象轮廓，避免「色彩鲜艳厚涂、3D立体、照片写实、赛璐璐高光」等；
-   - 剪纸：平面层次、红金配色、剪纸纹样，避免写实透视油画；
-   - 皮影：剪影、灯影、舞台感，避免写实肖像；
-   - 漫画：线稿、分块上色、夸张表情，避免水墨飞白。
-5) 输出结构：
-   - title: 故事标题
-   - story: 完整故事（120-220字）
-   - scenes: 3-4个场景，每个场景包含 scene_no, text, image_prompt
+你是一个专业的儿童绘本创作者。请基于以下要求，将输入的关键词创作为图文并茂的绘本，并输出严格的 JSON 格式：
+
+1) 读者定位：3-10岁儿童。语言温暖童趣，句式简短。
+2) 价值观导向：积极向上，自然融入（而非生硬说教）勇气、合作、善良或诚信等品质。
+3) 故事结构：
+   - title: 创意且吸引人的故事标题（中文）
+   - story: 完整故事连贯流畅（总字数 150-250 字）
+   - scenes: 将故事拆分为 3-4 个画面场景。
+4) 场景字段要求 (scenes)：
+   - scene_no: 场景序号 (1, 2, 3...)
+   - text: 该画面的绘本旁白（中文，约 30-50 字）
+   - image_prompt: 提交给 AI 生图模型的提示词【重要规范如下】：
+     a. **必须完全使用英文 (English)** 输出。
+     b. **不要带叙事动作**（如 "decided to", "felt happy"），只描述定格画面可见的内容。
+     c. **画面结构**：[Main Subject & Appearance] + [Action/Pose] + [Environment/Background] + [Lighting/Atmosphere].
+     d. **角色一致性**：在第一个场景为主角设定简短的英文视觉特征（如 "a 5-year-old Chinese boy wearing a red shirt and blue pants"），并在后续**每一个**场景的 image_prompt 中严格重复这段特征，以保持角色长相连贯。
+     e. **风格适配**：基于当前的风格「{style}」，在英文中加入对应的高级修饰词，并避开冲突技法：
+        - 水墨 (Ink wash): "traditional Chinese ink wash painting, minimalist, expressive brushstrokes, negative space", 避免 "3D, photorealistic, thick impasto".
+        - 剪纸 (Paper cutting): "Chinese paper cutting art, layered flat paper, intricate cutout patterns, red and gold color palette", 避免 "realistic perspective, oil painting".
+        - 皮影 (Shadow play): "Chinese shadow puppetry, silhouette against an illuminated screen, theatrical lighting, jointed flat figures", 避免 "realistic portraits, daylight".
+        - 漫画 (Comic): "vibrant comic book style, clear line art, flat colors, expressive features", 避免 "ink wash, photorealism".
+
 输入关键词：{keywords}
 """.strip()
 

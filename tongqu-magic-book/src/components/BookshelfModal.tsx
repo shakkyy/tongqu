@@ -20,6 +20,8 @@ function formatTime(ts: number): string {
   return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
+const FALLBACK_COVER = "/封面.png";
+
 export function BookshelfModal({
   open,
   onClose,
@@ -63,8 +65,13 @@ export function BookshelfModal({
                   className="flex gap-3 p-2 rounded-xl border-2 border-cn-ink/20 bg-cn-paper/50 hover:border-cn-ink/50 transition-colors"
                 >
                   <img
-                    src={e.coverUrl}
+                    src={e.coverUrl || FALLBACK_COVER}
                     alt=""
+                    onError={(ev) => {
+                      const img = ev.currentTarget;
+                      if (img.src.endsWith(encodeURI(FALLBACK_COVER)) || img.src.endsWith(FALLBACK_COVER)) return;
+                      img.src = FALLBACK_COVER;
+                    }}
                     className="w-20 h-14 object-cover rounded-lg border border-cn-ink/30 shrink-0"
                   />
                   <div className="flex-1 min-w-0 flex flex-col gap-1">

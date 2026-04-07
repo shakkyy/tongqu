@@ -9,10 +9,14 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import logging
 import re
-from typing import Any
+from typing import Any, Dict
 
 from config import CONFIG
+
+# 配置日志
+logger = logging.getLogger(__name__)
 
 try:
     from google import genai as google_genai
@@ -27,6 +31,35 @@ except ImportError:  # pragma: no cover
     OpenAI = None  # type: ignore
 
 from real_clients import API_KEY_ERROR, ApiKeyError
+
+
+# ==========================================
+# 风格预设常量区
+# 将 Prefix 和 Suffix 集中管理，便于后续扩展
+# ==========================================
+STYLE_PROMPTS: Dict[str, Dict[str, str]] = {
+    "剪纸": {
+        "prefix": "Chinese paper-cut art style, red and gold, flat layers, decorative folk pattern, children's picture book, warm and clear, ",
+        "suffix": ", Final image must look like paper-cut folk art, not oil painting or 3D, no horror."
+    },
+    "水墨": {
+        "prefix": "Traditional Chinese shuimo ink wash painting, sumi-e on rice paper, soft wet brush strokes and controlled bleeding, generous negative space (留白), muted ink grays and light sepia washes, poetic children's book illustration, ",
+        "suffix": ", Final image must read clearly as Chinese ink wash (水墨), NOT photorealistic, NOT 3D render, NOT thick glossy cel-shaded anime, avoid saturated rainbow colors, no horror."
+    },
+    "皮影": {
+        "prefix": "Chinese shadow puppetry theater style, warm amber backlight, flat colored silhouette cutouts, stage-like framing, children's picture book, ",
+        "suffix": ", Final image must look like shadow puppet silhouettes under stage light, no horror."
+    },
+    "漫画": {
+        "prefix": "Friendly children's comic panel style, clean ink outlines, soft flat or light cel shading, bright but harmonious colors, Chinese cultural elements, ",
+        "suffix": ", Final image must look like friendly children's comic illustration, no horror."
+    }
+}
+
+DEFAULT_STYLE = {
+    "prefix": "Chinese children's picture book illustration, culturally appropriate, warm, ",
+    "suffix": ", Keep a consistent children's book illustration style, no horror."
+}
 
 
 def _require_genai() -> Any:
@@ -85,44 +118,6 @@ def _parse_openai_image_content(content: Any) -> str:
     raise RuntimeError(f"OpenAI 兼容返回格式未识别: {type(content).__name__} {repr(content)[:300]}")
 
 
-def _style_prefix(style: str) -> str:
-    """英文前置：文生图模型对英文指令更稳；避免与画风矛盾的词（如水墨不宜强调 warm bright）。"""
-    return {
-        "剪纸": (
-            "Chinese paper-cut art style, red and gold, flat layers, decorative folk pattern, "
-            "children's picture book, warm and clear, no horror. "
-        ),
-        "水墨": (
-            "Traditional Chinese shuimo ink wash painting, sumi-e on rice paper, "
-            "soft wet brush strokes and controlled bleeding, generous negative space (留白), "
-            "muted ink grays and light sepia washes, NOT photorealistic, NOT 3D render, "
-            "NOT thick glossy cel-shaded anime, avoid saturated rainbow colors, "
-            "poetic children's book illustration, no horror. "
-        ),
-        "皮影": (
-            "Chinese shadow puppetry theater style, warm amber backlight, flat colored silhouette cutouts, "
-            "stage-like framing, children's picture book, no horror. "
-        ),
-        "漫画": (
-            "Friendly children's comic panel style, clean ink outlines, soft flat or light cel shading, "
-            "bright but harmonious colors, Chinese cultural elements, no horror. "
-        ),
-    }.get(
-        style,
-        "Chinese children's picture book illustration, culturally appropriate, warm, no horror. ",
-    )
-
-
-def _style_suffix(style: str) -> str:
-    """句末再强调一次，减弱中间中文 scene 描述「带偏」画风的几率。"""
-    return {
-        "剪纸": "Final image must look like paper-cut folk art, not oil painting or 3D.",
-        "水墨": "Final image must read clearly as Chinese ink wash (水墨), not digital painting or photo.",
-        "皮影": "Final image must look like shadow puppet silhouettes under stage light.",
-        "漫画": "Final image must look like friendly children's comic illustration.",
-    }.get(style, "Keep a consistent children's book illustration style.")
-
-
 def _generate_via_openai_compat(full_prompt: str) -> str:
     if OpenAI is None:
         raise RuntimeError("请先安装：pip install openai")
@@ -153,14 +148,20 @@ def _generate_via_openai_compat(full_prompt: str) -> str:
 def _generate_via_google_genai(full_prompt: str) -> str:
     client = _google_client()
     assert genai_types is not None
+    
+    # 预设配置：指定返回 IMAGE modality。
+    # 提示：如果是 Gemini 专属的 Imagen 3 模型 (如 imagen-3.0-generate-001)，
+    # 可以在此处或通过 kwargs 传入 aspect_ratio="4:3" 等参数来控制绘本比例。
     cfg = genai_types.GenerateContentConfig(
         response_modalities=[genai_types.Modality.IMAGE],
     )
+    
     resp = client.models.generate_content(
         model=CONFIG.GEMINI_IMAGE_MODEL,
         contents=full_prompt,
         config=cfg,
     )
+    
     if getattr(resp, "candidates", None):
         for cand in resp.candidates:
             content = getattr(cand, "content", None)
@@ -178,6 +179,7 @@ def _generate_via_google_genai(full_prompt: str) -> str:
                     else:
                         b64 = base64.b64encode(data).decode("ascii")
                     return f"data:{mime};base64,{b64}"
+                    
     raise RuntimeError(f"Gemini 图像返回无法解析（请检查 GEMINI_IMAGE_MODEL 是否支持文生图）: {resp!r}")
 
 
@@ -185,12 +187,29 @@ class GeminiImageClient:
     """文生图：返回 data:image/png;base64,... 供前端直接展示。"""
 
     async def generate_image(self, prompt: str, style: str) -> str:
+        # 获取风格配置
+        style_config = STYLE_PROMPTS.get(style, DEFAULT_STYLE)
+        prefix = style_config["prefix"]
+        suffix = style_config["suffix"]
+
+        # 清洗 Qwen 传来的 body
         body = (prompt or "").strip()
-        full_prompt = f"{_style_prefix(style)}{body} {_style_suffix(style)}".strip()
+        if body.endswith((".", ",")):
+            body = body[:-1]
+
+        # 组装最终 prompt
+        full_prompt = f"{prefix}{body}{suffix}".strip()
+        
+        # 记录日志，对 AIGC 画风调试极其重要
+        logger.info(f"🎨 [Gemini 生图 Prompt] Style: {style} | Prompt: {full_prompt}")
 
         def _call() -> str:
-            if (CONFIG.GEMINI_OPENAI_BASE_URL or "").strip():
-                return _generate_via_openai_compat(full_prompt)
-            return _generate_via_google_genai(full_prompt)
+            try:
+                if (CONFIG.GEMINI_OPENAI_BASE_URL or "").strip():
+                    return _generate_via_openai_compat(full_prompt)
+                return _generate_via_google_genai(full_prompt)
+            except Exception as e:
+                logger.error(f"生图调用失败 | Error: {e} | Prompt: {full_prompt}")
+                raise
 
         return await asyncio.to_thread(_call)
