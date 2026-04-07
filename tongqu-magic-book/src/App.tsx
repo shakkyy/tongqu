@@ -1,4 +1,5 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQwenRealtimeAsr } from "./hooks/useQwenRealtimeAsr";
 import { VoiceInput } from "./components/VoiceInput";
 import { StyleSelector } from "./components/StyleSelector";
 import { KeywordsSelector } from "./components/KeywordsSelector";
@@ -25,19 +26,19 @@ const OFFLINE_DEMO: StoryPage[] = [
     id: "p1",
     title: "云上小船",
     text: "一片金色云朵像小船一样飘过山谷，小朋友们在草地上和它打招呼。",
-    imageUrl: "https://images.unsplash.com/photo-1516715094483-75da7dee9758?auto=format&fit=crop&w=1200&q=80",
+    imageUrl: "/封面.png",
   },
   {
     id: "p2",
     title: "彩虹桥",
     text: "雨后的彩虹变成一座软软的桥，大家手拉手走过去，笑声像风铃一样清脆。",
-    imageUrl: "https://images.unsplash.com/photo-1472396961693-142e6e269027?auto=format&fit=crop&w=1200&q=80",
+    imageUrl: "/封面.png",
   },
   {
     id: "p3",
     title: "晚安星星",
     text: "月亮升起来，星星眨眼睛，今天的故事轻轻合上，明天再继续冒险。",
-    imageUrl: "https://images.unsplash.com/photo-1504208434309-cb69f4fe52b0?auto=format&fit=crop&w=1200&q=80",
+    imageUrl: "/封面.png",
   },
 ];
 
@@ -47,14 +48,14 @@ const WAITING_PAGES: StoryPage[] = [
     id: "wait",
     title: "准备创作",
     text: "在左侧选择关键词或保持默认灵感，挑选画风后点击「开始变魔术」，真实绘本将从后端生成并显示在这里。",
-    imageUrl: "https://images.unsplash.com/photo-1519682337058-a94d519337bc?auto=format&fit=crop&w=1200&q=80",
+    imageUrl:
+      "/封面.png",
   },
 ];
 
 export default function App() {
   const [theme] = useState<"default" | "spring">("default");
   const [creationMode, setCreationMode] = useState<"voice" | "keywords" | "sketch">("voice");
-  const [isListening, setIsListening] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const [style, setStyle] = useState<StoryStyle>("paper-cut");
@@ -71,6 +72,40 @@ export default function App() {
   const sketchPadRef = useRef<SketchPadHandle>(null);
   const [bookshelfOpen, setBookshelfOpen] = useState(false);
   const [bookshelfItems, setBookshelfItems] = useState<BookshelfEntry[]>(() => loadBookshelf());
+
+  const {
+    isListening: voiceListening,
+    serviceReady: voiceServiceReady,
+    transcriptForApi: voiceTranscript,
+    displayText: voiceDisplayText,
+    error: voiceError,
+    toggleListening: toggleVoiceListening,
+  } = useQwenRealtimeAsr(API_BASE);
+
+  /** 识别结束后的可编辑文案；生成绘本以本字段为准，便于纠正错字 */
+  const [voiceEditedText, setVoiceEditedText] = useState("");
+  const [voiceEditDirty, setVoiceEditDirty] = useState(false);
+  const prevVoiceListening = useRef(false);
+
+  useEffect(() => {
+    if (voiceListening && !prevVoiceListening.current) {
+      setVoiceEditDirty(false);
+      setVoiceEditedText("");
+    }
+    prevVoiceListening.current = voiceListening;
+  }, [voiceListening]);
+
+  useEffect(() => {
+    if (!voiceListening && !voiceEditDirty) {
+      setVoiceEditedText(voiceTranscript);
+    }
+  }, [voiceTranscript, voiceListening, voiceEditDirty]);
+
+  useEffect(() => {
+    if (creationMode !== "voice" && voiceListening) {
+      toggleVoiceListening();
+    }
+  }, [creationMode, voiceListening, toggleVoiceListening]);
 
   const refreshBookshelf = () => setBookshelfItems(loadBookshelf());
 
@@ -175,8 +210,22 @@ export default function App() {
       const snap = sketchPadRef.current?.getDataURL() ?? null;
       setSketchSnapshotUrl(snap);
       sketchSnapForShelf = snap ?? undefined;
-      if (snap) sketchImageForApi = snap;
+      if (!snap) {
+        setApiError("未能读取画板图像（画板可能尚未就绪）。请确认已切换到「草图」且右侧画板可见，稍后再试。");
+        return;
+      }
+      sketchImageForApi = snap;
       setRemotePages(null);
+    }
+
+    if (creationMode === "voice") {
+      const t = voiceEditedText.trim();
+      if (!t) {
+        setApiError(
+          "请先完成语音识别（或直接在下方文本框输入灵感），再点「开始变魔术」。",
+        );
+        return;
+      }
     }
 
     setIsGenerating(true);
@@ -189,9 +238,7 @@ export default function App() {
             }`
           : creationMode === "keywords"
             ? buildKeywordsForApi(keywordPayload)
-            : creationMode === "voice" && isListening
-              ? "语音灵感"
-              : "孙悟空+月亮";
+            : voiceEditedText.trim();
       const base = API_BASE.replace(/\/$/, "");
       const res = await fetch(`${base}/api/storybook/create`, {
         method: "POST",
@@ -199,6 +246,7 @@ export default function App() {
         body: JSON.stringify({
           keywords: kw,
           style,
+          creation_source: creationMode,
           ...(sketchImageForApi ? { sketch_image_base64: sketchImageForApi } : {}),
           ...(creationMode === "sketch" && sketchNote ? { sketch_text: sketchNote } : {}),
         }),
@@ -339,10 +387,50 @@ export default function App() {
                 <div className={creationMode === "voice" ? "" : "hidden"}>
                   <div className="flex flex-col gap-3">
                     <div className="py-1 flex justify-center">
-                      <VoiceInput isListening={isListening} onToggle={() => setIsListening((v) => !v)} />
+                      <VoiceInput
+                        isListening={voiceListening}
+                        onToggle={toggleVoiceListening}
+                        disabled={isGenerating}
+                      />
                     </div>
-                    <div className="bg-cn-paper/50 border-2 border-dashed border-cn-ink/30 p-2 rounded-xl min-h-[40px] text-cn-ink/50 text-[11px]">
-                      {isListening ? "正在变魔术..." : "录音内容显示区"}
+                    <div className="bg-cn-paper/50 border-2 border-dashed border-cn-ink/30 p-2 rounded-xl text-[11px] space-y-2">
+                      {!API_BASE && (
+                        <p className="text-cn-ink/50">配置 VITE_API_BASE_URL 后可使用云端语音识别。</p>
+                      )}
+                      {API_BASE && voiceListening && !voiceServiceReady && (
+                        <p className="text-cn-azure font-bold">正在连接语音识别服务…</p>
+                      )}
+                      {API_BASE && voiceListening && voiceServiceReady && (
+                        <div className="min-h-[44px] text-cn-ink/70">
+                          {voiceDisplayText ? (
+                            <p className="text-cn-ink font-medium leading-snug">{voiceDisplayText}</p>
+                          ) : (
+                            <p className="text-cn-ink/45">请说话，实时识别会显示在这里</p>
+                          )}
+                        </div>
+                      )}
+                      {API_BASE && !voiceListening && (
+                        <div className="flex flex-col gap-1.5">
+                          {voiceError && (
+                            <p className="text-red-600 font-bold leading-snug">{voiceError}</p>
+                          )}
+                          <label className="flex flex-col gap-1">
+                            <span className="text-[10px] font-bold text-cn-ink/80">故事灵感（可修改识别结果）</span>
+                            <textarea
+                              value={voiceEditedText}
+                              onChange={(e) => {
+                                setVoiceEditDirty(true);
+                                setVoiceEditedText(e.target.value.slice(0, 2000));
+                              }}
+                              rows={4}
+                              maxLength={2000}
+                              disabled={isGenerating}
+                              placeholder="点麦克风说话，结束后文字出现在此；有识别错误内容可以直接修改，也可直接打字输入灵感。输入结束后点击「开始变魔术」按钮开始创作。"
+                              className="w-full text-[11px] rounded-lg border-2 border-cn-ink/25 bg-white p-2 text-cn-ink placeholder:text-cn-ink/40 resize-none leading-relaxed disabled:opacity-60"
+                            />
+                          </label>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -399,7 +487,7 @@ export default function App() {
                 <div className="w-5 h-5 rounded-full border-2 border-cn-ink bg-cn-red flex items-center justify-center font-bold text-white text-[10px]">2</div>
                 <h3 className="text-sm font-bold text-cn-ink">挑选插画画风</h3>
               </div>
-              <div className="scale-90 origin-left">
+              <div className="w-full flex justify-center">
                 <StyleSelector value={style} onChange={setStyle} />
               </div>
             </div>

@@ -11,7 +11,7 @@ fastapi>=0.115.0
 uvicorn[standard]>=0.32.0
 
 # 阿里云百炼（故事）+ Green + NLS
-dashscope>=1.19.0
+dashscope>=1.25.6
 alibabacloud-tea-openapi>=0.3.8
 alibabacloud-tea-util>=0.3.11
 alibabacloud-green20220302>=2.0.0

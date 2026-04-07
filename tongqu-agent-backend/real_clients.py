@@ -60,6 +60,13 @@ class NlsRateLimitError(RuntimeError):
     """阿里云 NLS 网关限流（并发或 QPS 过高）。"""
 
 
+def _apply_dashscope_base_url() -> None:
+    """默认华北2（北京）；若 .env 覆盖则为其它地域网关。"""
+    if dashscope is None:
+        return
+    dashscope.base_http_api_url = CONFIG.DASHSCOPE_BASE_HTTP_API_URL
+
+
 def _require_dashscope() -> None:
     if dashscope is None or Generation is None:
         raise RuntimeError("请先安装 dashscope：pip install dashscope")
@@ -141,7 +148,7 @@ def _extract_vl_text(resp: Any) -> str:
 
 _SKETCH_VL_USER_PROMPT = (
     "请用中文简要描述这张儿童手绘草图里画了什么、可能表达的主题或情感。"
-    "要求：3～8 句话，面向后续儿童绘本创作；避免技术术语；不要输出 JSON 或 Markdown 标题。"
+    "要求：5～10 句话，面向后续儿童绘本创作；避免技术术语；不要输出 JSON 或 Markdown 标题。"
 )
 
 
@@ -166,6 +173,7 @@ class DashScopeQwenVLClient:
             img = f"data:image/png;base64,{img}"
 
         def _call() -> str:
+            _apply_dashscope_base_url()
             dashscope.api_key = self.api_key
             assert MultiModalConversation is not None
             resp = MultiModalConversation.call(
@@ -198,6 +206,7 @@ class DashScopeQwenClient:
         _require_dashscope()
 
         def _call() -> str:
+            _apply_dashscope_base_url()
             dashscope.api_key = self.api_key
             resp = Generation.call(
                 api_key=self.api_key,

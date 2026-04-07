@@ -22,7 +22,7 @@ interface StyleSelectorProps {
 
 export function StyleSelector({ value, onChange }: StyleSelectorProps) {
   return (
-    <div className="grid grid-cols-2 gap-2">
+    <div className="grid grid-cols-2 gap-2 w-full max-w-[260px] mx-auto justify-items-stretch">
       {STYLE_OPTIONS.map((option) => {
         const selected = option.id === value;
         const Icon = option.icon;
