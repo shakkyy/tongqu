@@ -16,3 +16,7 @@ alibabacloud-tea-openapi>=0.3.8
 alibabacloud-tea-util>=0.3.11
 alibabacloud-green20220302>=2.0.0
 aliyun-python-sdk-core>=2.14.0
+
+# 中文风格关键词增强
+torch>=2.2.0
+transformers>=4.46.0

@@ -32,6 +32,7 @@ class TongquAgent:
         sketch_image_base64: str | None = None,
         sketch_text: str | None = None,
         creation_source: CreationSource | str | None = None,
+        enable_style_keyword_enhancer: bool | None = None,
     ) -> Dict[str, Any]:
         """
         统一入口。草图模式下会先走 VL 再交给 Qwen Plus；语音/选词仅传 keywords 即可。
@@ -48,7 +49,11 @@ class TongquAgent:
             sketch_text=sketch_text,
         )
 
-        result = await self._story.run(sketch_ctx.merged_keywords, style)
+        result = await self._story.run(
+            sketch_ctx.merged_keywords,
+            style,
+            enable_style_keyword_enhancer=enable_style_keyword_enhancer,
+        )
         result["creation_source"] = src.value
         result["sketch_vl_used"] = sketch_ctx.vl_used
         result["sketch_understanding"] = sketch_ctx.vl_understanding

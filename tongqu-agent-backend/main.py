@@ -46,6 +46,10 @@ class StorybookCreateRequest(BaseModel):
         default=None,
         description="创作来源，用于追踪：voice | keywords | sketch",
     )
+    enable_style_keyword_enhancer: bool = Field(
+        default=False,
+        description="是否启用中文风格关键词增强器，默认关闭",
+    )
 
 
 @app.get("/health")
@@ -130,4 +134,5 @@ async def create_storybook(body: StorybookCreateRequest) -> dict:
         sketch_image_base64=body.sketch_image_base64,
         sketch_text=body.sketch_text,
         creation_source=body.creation_source,
+        enable_style_keyword_enhancer=body.enable_style_keyword_enhancer,
     )

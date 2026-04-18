@@ -21,6 +21,7 @@ from services.protocols import (
     Scene,
     TTSClient,
 )
+from services.style_keyword_enhancer import StyleKeywordEnhancer
 from real_clients import ApiKeyError
 
 
@@ -36,20 +37,55 @@ class StorybookPipeline:
         tts_client: TTSClient,
         safety_client: SafetyClient,
         safety_middleware: SafetyMiddleware | None = None,
+        style_keyword_enhancer: StyleKeywordEnhancer | None = None,
     ) -> None:
         self.llm_client = llm_client
         self.image_client = image_client
         self.tts_client = tts_client
         self.safety_client = safety_client
         self.safety_middleware = safety_middleware or SafetyMiddleware()
+        self.style_keyword_enhancer = style_keyword_enhancer or StyleKeywordEnhancer()
 
-    async def run(self, story_keywords: str, style: str) -> Dict[str, Any]:
+    async def run(
+        self,
+        story_keywords: str,
+        style: str,
+        *,
+        enable_style_keyword_enhancer: bool | None = None,
+    ) -> Dict[str, Any]:
         try:
             filtered = await self.safety_middleware.filter_input(story_keywords)
             safe_keywords = filtered["sanitized_keywords"]
             normalized_style = self._normalize_style(style)
+            enhancer_enabled = (
+                CONFIG.STYLE_KEYWORD_ENHANCER_ENABLED
+                if enable_style_keyword_enhancer is None
+                else enable_style_keyword_enhancer
+            )
+            if enhancer_enabled:
+                enhancement_result = self.style_keyword_enhancer.enhance(
+                    safe_keywords,
+                    normalized_style,
+                    enabled=True,
+                )
+                enhancement = {
+                    "selected_keywords": enhancement_result.selected_keywords,
+                    "rewritten_prompt": enhancement_result.rewritten_prompt,
+                    "used_model": enhancement_result.used_model,
+                    "model_error": enhancement_result.model_error,
+                }
+            else:
+                enhancement = {
+                    "selected_keywords": [],
+                    "rewritten_prompt": safe_keywords,
+                    "used_model": False,
+                    "model_error": None,
+                }
 
-            prompt = self._build_story_prompt(keywords=safe_keywords, style=normalized_style)
+            prompt = self._build_story_prompt(
+                keywords=enhancement["rewritten_prompt"],
+                style=normalized_style,
+            )
 
             raw_story = await self.llm_client.generate(prompt)
             safe_story = await self._ensure_safe_text(raw_story)
@@ -72,6 +108,11 @@ class StorybookPipeline:
                 "mode": "real",
                 "input_blocked": filtered["blocked"],
                 "input_hits": filtered["hits"],
+                "style_keyword_enhancer_enabled": enhancer_enabled,
+                "style_keywords": enhancement["selected_keywords"],
+                "enhanced_keywords_prompt": enhancement["rewritten_prompt"],
+                "style_keyword_model_used": enhancement["used_model"],
+                "style_keyword_model_error": enhancement["model_error"],
                 "title": title,
                 "story_text": story_text,
                 "scenes": [
@@ -97,6 +138,7 @@ class StorybookPipeline:
                 "scenes": [],
                 "image_urls": [],
                 "audio_urls": [],
+                "style_keyword_enhancer_enabled": False,
                 "intercept_logs": self.safety_middleware.list_intercept_logs(),
             }
         except Exception as exc:  # noqa: BLE001
@@ -110,6 +152,7 @@ class StorybookPipeline:
                 "scenes": [],
                 "image_urls": [],
                 "audio_urls": [],
+                "style_keyword_enhancer_enabled": False,
                 "intercept_logs": self.safety_middleware.list_intercept_logs(),
             }
 
@@ -140,7 +183,7 @@ class StorybookPipeline:
         - 皮影 (Shadow play): "Chinese shadow puppetry, silhouette against an illuminated screen, theatrical lighting, jointed flat figures", 避免 "realistic portraits, daylight".
         - 漫画 (Comic): "vibrant comic book style, clear line art, flat colors, expressive features", 避免 "ink wash, photorealism".
 
-输入关键词：{keywords}
+输入素材与风格强化信息：{keywords}
 """.strip()
 
     def _normalize_style(self, style: str) -> str:

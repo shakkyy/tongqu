@@ -1,0 +1,75 @@
+{
+  "version": 1,
+  "default_top_k": 4,
+  "prompt_template": "原始内容：{prompt}\n画面风格：{style}\n风格强化关键词：{keywords}\n要求：以上关键词只用于强化画面风格、笔触、构图、光感与材质，不新增角色、不改变剧情。",
+  "styles": {
+    "水墨": {
+      "description": "中国水墨绘本风格，强调宣纸质感、墨色层次与留白。",
+      "keywords": [
+        { "keyword": "留白", "category": "构图", "weight": 1.0 },
+        { "keyword": "淡墨晕染", "category": "笔触", "weight": 0.98 },
+        { "keyword": "宣纸质感", "category": "材质", "weight": 0.96 },
+        { "keyword": "写意笔触", "category": "笔触", "weight": 0.94 },
+        { "keyword": "水汽氤氲", "category": "氛围", "weight": 0.91 },
+        { "keyword": "墨色层次", "category": "色调", "weight": 0.92 },
+        { "keyword": "柔和灰调", "category": "色调", "weight": 0.88 },
+        { "keyword": "飞白笔意", "category": "笔触", "weight": 0.84 },
+        { "keyword": "湿笔渗化", "category": "笔触", "weight": 0.86 },
+        { "keyword": "朦胧远山感", "category": "空间", "weight": 0.8 },
+        { "keyword": "清透水痕", "category": "材质", "weight": 0.76 },
+        { "keyword": "含蓄留韵", "category": "氛围", "weight": 0.82 }
+      ]
+    },
+    "剪纸": {
+      "description": "中国民间剪纸绘本风格，强调镂空纹样、层叠平面和节庆色彩。",
+      "keywords": [
+        { "keyword": "镂空纹样", "category": "装饰", "weight": 1.0 },
+        { "keyword": "平面层叠", "category": "构图", "weight": 0.98 },
+        { "keyword": "红金配色", "category": "色调", "weight": 0.96 },
+        { "keyword": "民俗装饰感", "category": "装饰", "weight": 0.94 },
+        { "keyword": "对称构图", "category": "构图", "weight": 0.92 },
+        { "keyword": "剪影边缘", "category": "造型", "weight": 0.89 },
+        { "keyword": "窗花节奏", "category": "装饰", "weight": 0.87 },
+        { "keyword": "团花纹理", "category": "装饰", "weight": 0.83 },
+        { "keyword": "纸张纤维感", "category": "材质", "weight": 0.82 },
+        { "keyword": "喜庆暖色", "category": "色调", "weight": 0.8 },
+        { "keyword": "轮廓整齐感", "category": "造型", "weight": 0.78 },
+        { "keyword": "纹样重复感", "category": "装饰", "weight": 0.76 }
+      ]
+    },
+    "皮影": {
+      "description": "中国皮影戏绘本风格，强调幕布透光、人物剪影和戏台灯光。",
+      "keywords": [
+        { "keyword": "幕布透光", "category": "光感", "weight": 1.0 },
+        { "keyword": "剪影人物", "category": "造型", "weight": 0.98 },
+        { "keyword": "暖黄侧光", "category": "光感", "weight": 0.96 },
+        { "keyword": "戏台构图", "category": "构图", "weight": 0.94 },
+        { "keyword": "关节偶感", "category": "造型", "weight": 0.92 },
+        { "keyword": "半透明彩片", "category": "材质", "weight": 0.89 },
+        { "keyword": "屏风层次", "category": "空间", "weight": 0.86 },
+        { "keyword": "灯幕后景", "category": "空间", "weight": 0.84 },
+        { "keyword": "民乐戏韵", "category": "氛围", "weight": 0.81 },
+        { "keyword": "边框纹饰", "category": "装饰", "weight": 0.8 },
+        { "keyword": "透光皮革感", "category": "材质", "weight": 0.79 },
+        { "keyword": "舞台层幕", "category": "构图", "weight": 0.77 }
+      ]
+    },
+    "漫画": {
+      "description": "儿童漫画绘本风格，强调清晰线稿、平涂色块和分镜节奏。",
+      "keywords": [
+        { "keyword": "清晰线稿", "category": "线条", "weight": 1.0 },
+        { "keyword": "平涂色块", "category": "上色", "weight": 0.98 },
+        { "keyword": "分镜感", "category": "构图", "weight": 0.96 },
+        { "keyword": "明快配色", "category": "色调", "weight": 0.94 },
+        { "keyword": "夸张表情", "category": "造型", "weight": 0.92 },
+        { "keyword": "动态线", "category": "线条", "weight": 0.89 },
+        { "keyword": "轻阴影", "category": "上色", "weight": 0.87 },
+        { "keyword": "镜头切换感", "category": "构图", "weight": 0.85 },
+        { "keyword": "轮廓高对比", "category": "线条", "weight": 0.83 },
+        { "keyword": "童趣表情设计", "category": "造型", "weight": 0.81 },
+        { "keyword": "节奏型画面", "category": "构图", "weight": 0.79 },
+        { "keyword": "干净背景色", "category": "上色", "weight": 0.77 }
+      ]
+    }
+  }
+}
