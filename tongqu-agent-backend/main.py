@@ -61,7 +61,7 @@ async def health() -> dict[str, str]:
 async def asr_realtime_ws(websocket: WebSocket) -> None:
     """语音子模块：收 PCM 音频后调用 qwen3-asr-flash（OpenAI兼容）转写。"""
     await websocket.accept()
-    from services.asr_realtime import AsrRealtimeBridge, require_asr_sdk
+    from services.asr_service import AsrRealtimeBridge, require_asr_sdk
 
     if not CONFIG.DASHSCOPE_API_KEY:
         await websocket.send_json({"type": "error", "detail": "未配置 DASHSCOPE_API_KEY"})

@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
 
-from services.protocols import SketchVisionClient
+from core.models import SketchVisionClient
 
 
 @dataclass(frozen=True)
