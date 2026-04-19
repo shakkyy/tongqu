@@ -45,5 +45,24 @@ class AppConfig:
     GREEN_TEXT_SERVICE: str = os.getenv("GREEN_TEXT_SERVICE", "chat_detection_pro")
     GREEN_IMAGE_SERVICE: str = os.getenv("GREEN_IMAGE_SERVICE", "baselineCheck")
 
+    # ========== 中文风格关键词增强 ==========
+    STYLE_KEYWORD_ENHANCER_ENABLED: bool = (
+        (os.getenv("STYLE_KEYWORD_ENHANCER_ENABLED", "0").strip().lower())
+        not in {"0", "false", "no"}
+    )
+    STYLE_KEYWORD_TOP_K: int = int(os.getenv("STYLE_KEYWORD_TOP_K", "4"))
+    STYLE_KEYWORD_BASE_MODEL: str = os.getenv(
+        "STYLE_KEYWORD_BASE_MODEL",
+        "BAAI/bge-small-zh-v1.5",
+    )
+    STYLE_KEYWORD_BANK_PATH: str = os.getenv(
+        "STYLE_KEYWORD_BANK_PATH",
+        str(Path(__file__).resolve().parent / "data" / "style_keywords.json"),
+    )
+    STYLE_KEYWORD_MODEL_DIR: str = os.getenv(
+        "STYLE_KEYWORD_MODEL_DIR",
+        str(Path(__file__).resolve().parent / "training" / "artifacts" / "style_keyword_ranker"),
+    )
+
 
 CONFIG = AppConfig()

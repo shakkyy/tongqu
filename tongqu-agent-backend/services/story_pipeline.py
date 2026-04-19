@@ -11,8 +11,8 @@ import json
 from typing import Any, Dict, List, Sequence
 
 from config import CONFIG
-from safety_middleware import SafetyMiddleware
-from services.protocols import (
+from core.clients import ApiKeyError
+from core.models import (
     MAX_IMAGE_RETRY,
     USER_FACING_FALLBACK,
     ImageClient,
@@ -21,7 +21,8 @@ from services.protocols import (
     Scene,
     TTSClient,
 )
-from real_clients import ApiKeyError
+from core.safety import SafetyMiddleware
+from services.style_keyword_enhancer import StyleKeywordEnhancer
 
 
 class StorybookPipeline:
@@ -36,20 +37,55 @@ class StorybookPipeline:
         tts_client: TTSClient,
         safety_client: SafetyClient,
         safety_middleware: SafetyMiddleware | None = None,
+        style_keyword_enhancer: StyleKeywordEnhancer | None = None,
     ) -> None:
         self.llm_client = llm_client
         self.image_client = image_client
         self.tts_client = tts_client
         self.safety_client = safety_client
         self.safety_middleware = safety_middleware or SafetyMiddleware()
+        self.style_keyword_enhancer = style_keyword_enhancer or StyleKeywordEnhancer()
 
-    async def run(self, story_keywords: str, style: str) -> Dict[str, Any]:
+    async def run(
+        self,
+        story_keywords: str,
+        style: str,
+        *,
+        enable_style_keyword_enhancer: bool | None = None,
+    ) -> Dict[str, Any]:
         try:
             filtered = await self.safety_middleware.filter_input(story_keywords)
             safe_keywords = filtered["sanitized_keywords"]
             normalized_style = self._normalize_style(style)
+            enhancer_enabled = (
+                CONFIG.STYLE_KEYWORD_ENHANCER_ENABLED
+                if enable_style_keyword_enhancer is None
+                else enable_style_keyword_enhancer
+            )
+            if enhancer_enabled:
+                enhancement_result = self.style_keyword_enhancer.enhance(
+                    safe_keywords,
+                    normalized_style,
+                    enabled=True,
+                )
+                enhancement = {
+                    "selected_keywords": enhancement_result.selected_keywords,
+                    "rewritten_prompt": enhancement_result.rewritten_prompt,
+                    "used_model": enhancement_result.used_model,
+                    "model_error": enhancement_result.model_error,
+                }
+            else:
+                enhancement = {
+                    "selected_keywords": [],
+                    "rewritten_prompt": safe_keywords,
+                    "used_model": False,
+                    "model_error": None,
+                }
 
-            prompt = self._build_story_prompt(keywords=safe_keywords, style=normalized_style)
+            prompt = self._build_story_prompt(
+                keywords=enhancement["rewritten_prompt"],
+                style=normalized_style,
+            )
 
             raw_story = await self.llm_client.generate(prompt)
             safe_story = await self._ensure_safe_text(raw_story)
@@ -72,6 +108,11 @@ class StorybookPipeline:
                 "mode": "real",
                 "input_blocked": filtered["blocked"],
                 "input_hits": filtered["hits"],
+                "style_keyword_enhancer_enabled": enhancer_enabled,
+                "style_keywords": enhancement["selected_keywords"],
+                "enhanced_keywords_prompt": enhancement["rewritten_prompt"],
+                "style_keyword_model_used": enhancement["used_model"],
+                "style_keyword_model_error": enhancement["model_error"],
                 "title": title,
                 "story_text": story_text,
                 "scenes": [
@@ -97,6 +138,7 @@ class StorybookPipeline:
                 "scenes": [],
                 "image_urls": [],
                 "audio_urls": [],
+                "style_keyword_enhancer_enabled": False,
                 "intercept_logs": self.safety_middleware.list_intercept_logs(),
             }
         except Exception as exc:  # noqa: BLE001
@@ -110,6 +152,137 @@ class StorybookPipeline:
                 "scenes": [],
                 "image_urls": [],
                 "audio_urls": [],
+                "style_keyword_enhancer_enabled": False,
+                "intercept_logs": self.safety_middleware.list_intercept_logs(),
+            }
+
+    async def finalize_from_structured(
+        self,
+        *,
+        style: str,
+        title: str,
+        story_text: str,
+        scenes: List[Scene],
+        input_blocked: bool,
+        input_hits: List[str],
+        enhancement: Dict[str, Any],
+        enhancer_enabled: bool,
+    ) -> Dict[str, Any]:
+        """
+        ReAct / 沙盒主链完成后：配图 + TTS + 终审；并回传与 run() 一致的风格关键词增强元数据
+        （enhancement 由上游在 filter 之后按与 run() 相同逻辑预先计算）。
+        """
+        normalized_style = self._normalize_style(style)
+        try:
+            bundle = json.dumps(
+                {
+                    "title": title,
+                    "story": story_text,
+                    "scenes": [
+                        {
+                            "scene_no": s.scene_no,
+                            "text": s.text,
+                            "image_prompt": s.image_prompt,
+                        }
+                        for s in scenes
+                    ],
+                },
+                ensure_ascii=False,
+            )
+            safe_bundle = await self._ensure_safe_text(bundle)
+            try:
+                data = json.loads(safe_bundle)
+                title = str(data.get("title", title))
+                story_text = str(data.get("story", story_text))
+                raw_scenes = data.get("scenes") or []
+                if isinstance(raw_scenes, list) and raw_scenes:
+                    parsed: List[Scene] = []
+                    for idx, item in enumerate(raw_scenes[:4], start=1):
+                        if not isinstance(item, dict):
+                            continue
+                        parsed.append(
+                            Scene(
+                                scene_no=int(item.get("scene_no", idx)),
+                                text=str(item.get("text", "")),
+                                image_prompt=str(item.get("image_prompt", "")),
+                            )
+                        )
+                    if parsed:
+                        scenes = parsed
+            except json.JSONDecodeError:
+                pass
+
+            image_urls, audio_urls = await asyncio.gather(
+                self._generate_images_with_retry(scenes=scenes, style=normalized_style),
+                self._synthesize_all_scenes(scenes=scenes, voice="亲切姐姐"),
+            )
+
+            title, story_text, scenes = await self._final_safety_review(
+                title=title,
+                story_text=story_text,
+                scenes=scenes,
+                image_urls=image_urls,
+            )
+            story_text = await self.safety_middleware.align_values(story_text)
+
+            return {
+                "ok": True,
+                "mode": "real",
+                "input_blocked": input_blocked,
+                "input_hits": input_hits,
+                "style_keyword_enhancer_enabled": enhancer_enabled,
+                "style_keywords": enhancement["selected_keywords"],
+                "enhanced_keywords_prompt": enhancement["rewritten_prompt"],
+                "style_keyword_model_used": enhancement["used_model"],
+                "style_keyword_model_error": enhancement["model_error"],
+                "title": title,
+                "story_text": story_text,
+                "scenes": [
+                    {
+                        "scene_no": s.scene_no,
+                        "text": s.text,
+                        "image_prompt": s.image_prompt,
+                    }
+                    for s in scenes
+                ],
+                "image_urls": image_urls,
+                "audio_urls": audio_urls,
+                "intercept_logs": self.safety_middleware.list_intercept_logs(),
+            }
+        except ApiKeyError as exc:
+            return {
+                "ok": False,
+                "error": str(exc),
+                "detail": str(exc),
+                "mode": "real",
+                "title": "",
+                "story_text": "",
+                "scenes": [],
+                "image_urls": [],
+                "audio_urls": [],
+                "style_keyword_enhancer_enabled": enhancer_enabled,
+                "style_keywords": enhancement.get("selected_keywords", []),
+                "enhanced_keywords_prompt": enhancement.get("rewritten_prompt", ""),
+                "style_keyword_model_used": enhancement.get("used_model", False),
+                "style_keyword_model_error": enhancement.get("model_error"),
+                "intercept_logs": self.safety_middleware.list_intercept_logs(),
+            }
+        except Exception as exc:  # noqa: BLE001
+            return {
+                "ok": False,
+                "error": USER_FACING_FALLBACK,
+                "detail": str(exc),
+                "mode": "real",
+                "title": "",
+                "story_text": "",
+                "scenes": [],
+                "image_urls": [],
+                "audio_urls": [],
+                "style_keyword_enhancer_enabled": enhancer_enabled,
+                "style_keywords": enhancement.get("selected_keywords", []),
+                "enhanced_keywords_prompt": enhancement.get("rewritten_prompt", ""),
+                "style_keyword_model_used": enhancement.get("used_model", False),
+                "style_keyword_model_error": enhancement.get("model_error"),
                 "intercept_logs": self.safety_middleware.list_intercept_logs(),
             }
 
@@ -140,7 +313,7 @@ class StorybookPipeline:
         - 皮影 (Shadow play): "Chinese shadow puppetry, silhouette against an illuminated screen, theatrical lighting, jointed flat figures", 避免 "realistic portraits, daylight".
         - 漫画 (Comic): "vibrant comic book style, clear line art, flat colors, expressive features", 避免 "ink wash, photorealism".
 
-输入关键词：{keywords}
+输入素材与风格强化信息：{keywords}
 """.strip()
 
     def _normalize_style(self, style: str) -> str:
@@ -264,8 +437,12 @@ def build_default_story_pipeline() -> StorybookPipeline:
             "叙事走百炼 Qwen Plus，配图全部走 Gemini。"
         )
 
-    from gemini_clients import GeminiImageClient
-    from real_clients import AliyunGreenSafetyClient, AliyunNlsTtsClient, DashScopeQwenClient
+    from core.clients import (
+        AliyunGreenSafetyClient,
+        AliyunNlsTtsClient,
+        DashScopeQwenClient,
+        GeminiImageClient,
+    )
 
     return StorybookPipeline(
         llm_client=DashScopeQwenClient(),

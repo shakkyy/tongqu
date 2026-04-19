@@ -1,8 +1,11 @@
-"""与各云厂商实现解耦的协议与共用数据结构。"""
+"""
+全局共用数据结构与协议：原 services/protocols.py 与 agent/models.py 合并。
+"""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import Enum
 from typing import Any, Dict, List, Protocol, Sequence
 
 USER_FACING_FALLBACK = "小精灵累了，请稍后再试"
@@ -57,3 +60,20 @@ class SketchVisionClient(Protocol):
 
     async def describe_sketch(self, image_data_url: str) -> str:
         ...
+
+
+class CreationSource(str, Enum):
+    """与前端三种创作方式一一对应。"""
+
+    VOICE = "voice"
+    KEYWORDS = "keywords"
+    SKETCH = "sketch"
+
+    @classmethod
+    def from_optional(cls, raw: str | None) -> CreationSource:
+        if not raw:
+            return cls.KEYWORDS
+        try:
+            return cls(raw)
+        except ValueError:
+            return cls.KEYWORDS

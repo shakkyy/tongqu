@@ -46,6 +46,10 @@ class StorybookCreateRequest(BaseModel):
         default=None,
         description="创作来源，用于追踪：voice | keywords | sketch",
     )
+    enable_style_keyword_enhancer: bool = Field(
+        default=False,
+        description="是否启用中文风格关键词增强器，默认关闭",
+    )
 
 
 @app.get("/health")
@@ -57,7 +61,7 @@ async def health() -> dict[str, str]:
 async def asr_realtime_ws(websocket: WebSocket) -> None:
     """语音子模块：收 PCM 音频后调用 qwen3-asr-flash（OpenAI兼容）转写。"""
     await websocket.accept()
-    from services.asr_realtime import AsrRealtimeBridge, require_asr_sdk
+    from services.asr_service import AsrRealtimeBridge, require_asr_sdk
 
     if not CONFIG.DASHSCOPE_API_KEY:
         await websocket.send_json({"type": "error", "detail": "未配置 DASHSCOPE_API_KEY"})
@@ -130,4 +134,5 @@ async def create_storybook(body: StorybookCreateRequest) -> dict:
         sketch_image_base64=body.sketch_image_base64,
         sketch_text=body.sketch_text,
         creation_source=body.creation_source,
+        enable_style_keyword_enhancer=body.enable_style_keyword_enhancer,
     )
