@@ -1,14 +1,14 @@
 # Fdb version 4
-["xdvipdfmx"] 1776581302.74296 "/Users/xinchen/Downloads/homework-all/文化/tongqu/out/intro-2.xdv" "/Users/xinchen/Downloads/homework-all/文化/tongqu/out/intro-2.pdf" "/Users/xinchen/Downloads/homework-all/文化/tongqu/out/intro-2" 1776581305.641 0
-  "/Users/xinchen/Downloads/homework-all/文化/tongqu/out/intro-2.xdv" 1776581302.54598 126472 7ac0fb8c2e6be2782117ee546220380e "xelatex"
+["xdvipdfmx"] 1776603476.65792 "/Users/xinchen/Downloads/homework-all/文化/tongqu/out/intro-2.xdv" "/Users/xinchen/Downloads/homework-all/文化/tongqu/out/intro-2.pdf" "/Users/xinchen/Downloads/homework-all/文化/tongqu/out/intro-2" 1776603480.26981 0
+  "/Users/xinchen/Downloads/homework-all/文化/tongqu/out/intro-2.xdv" 1776603476.46314 165136 2a71336a70606502e9e25eaaccad1bbe "xelatex"
   (generated)
   "/Users/xinchen/Downloads/homework-all/文化/tongqu/out/intro-2.pdf"
   (rewritten before read)
-["xelatex"] 1776581299.58008 "intro-2.tex" "/Users/xinchen/Downloads/homework-all/文化/tongqu/out/intro-2.xdv" "intro-2" 1776581305.63634 0
-  "/Users/xinchen/Downloads/homework-all/文化/tongqu/out/intro-2.aux" 1776581302.54442 4293 6656a2b8004b8069f89b3dff17751128 "xelatex"
-  "/Users/xinchen/Downloads/homework-all/文化/tongqu/out/intro-2.nav" 1776581302.54581 2262 afbce35b332997da73ec2a067d224d4f "xelatex"
-  "/Users/xinchen/Downloads/homework-all/文化/tongqu/out/intro-2.out" 1776581302.54552 337 ba2d6d79bbe0d31f2e455806c7bc5710 "xelatex"
-  "/Users/xinchen/Downloads/homework-all/文化/tongqu/out/intro-2.toc" 1776581302.54592 179 cc5a98e744b65af250b096eb63d5feef "xelatex"
+["xelatex"] 1776603472.67701 "intro-2.tex" "/Users/xinchen/Downloads/homework-all/文化/tongqu/out/intro-2.xdv" "intro-2" 1776603480.26489 0
+  "/Users/xinchen/Downloads/homework-all/文化/tongqu/out/intro-2.aux" 1776603476.46167 4635 ae93999ca17aa4032510a1d697f13970 "xelatex"
+  "/Users/xinchen/Downloads/homework-all/文化/tongqu/out/intro-2.nav" 1776603476.46304 2448 7be588d089761f519f1e6b237f27200b "xelatex"
+  "/Users/xinchen/Downloads/homework-all/文化/tongqu/out/intro-2.out" 1776603476.46278 337 ba2d6d79bbe0d31f2e455806c7bc5710 "xelatex"
+  "/Users/xinchen/Downloads/homework-all/文化/tongqu/out/intro-2.toc" 1776603476.46307 179 c8d1d12786cda407218172f0a38e88ce "xelatex"
   "/usr/local/texlive/2025/texmf-dist/fonts/map/fontname/texfonts.map" 1577235249 3524 cb3e574dea2d1052e39280babc910dc8 ""
   "/usr/local/texlive/2025/texmf-dist/fonts/tfm/adobe/symbol/psyr.tfm" 1136768653 1408 5937f58aa508ea2cea4901c07d10f5fe ""
   "/usr/local/texlive/2025/texmf-dist/fonts/tfm/adobe/zapfding/pzdr.tfm" 1136768653 1528 f853c4d1b4e0550255e02831fdc8496f ""
@@ -104,6 +104,7 @@
   "/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/frontendlayer/tikz/libraries/tikzlibrarybackgrounds.code.tex" 1601326656 4572 4a19637ef65ce88ad2f2d5064b69541d ""
   "/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/frontendlayer/tikz/libraries/tikzlibrarycalc.code.tex" 1601326656 15929 463535aa2c4268fead6674a75c0e8266 ""
   "/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/frontendlayer/tikz/libraries/tikzlibraryfadings.code.tex" 1601326656 1179 5483d86c1582c569e665c74efab6281f ""
+  "/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/frontendlayer/tikz/libraries/tikzlibraryfit.code.tex" 1673816307 3626 2d87dc681257fa32d07a8b3934b10f88 ""
   "/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/frontendlayer/tikz/libraries/tikzlibrarypositioning.code.tex" 1601326656 3937 3f208572dd82c71103831da976d74f1a ""
   "/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/frontendlayer/tikz/libraries/tikzlibraryshadows.code.tex" 1601326656 2889 d698e3a959304efa342d47e3bb86da5b ""
   "/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/frontendlayer/tikz/libraries/tikzlibraryshapes.arrows.code.tex" 1601326656 410 048d1174dabde96757a5387b8f23d968 ""
@@ -322,7 +323,7 @@
   "/usr/local/texlive/2025/texmf-var/web2c/xetex/xelatex.fmt" 1758529532 5639812 c23086dee85501ec3c460104c19a8c4f ""
   "/usr/local/texlive/2025/texmf.cnf" 1741450484 577 418a7058ec8e006d8704f60ecd22c938 ""
   "collegeBeamer.sty" 1776580580.04377 15236 5cb2bd63f6516b99ddc3d5ea189c1d05 ""
-  "intro-2.tex" 1776581290.54314 23375 d3922dc77c826b6576363497dd811bd8 ""
+  "intro-2.tex" 1776603431.9595 31015 3679998318812cac15f2769869248564 ""
   "src/BUPT-RED/background.png" 1776580493.78017 1283414 9b9bcb8963aec258cac9fcf8215cff1a ""
   "src/BUPT-RED/color-logo.png" 1776580811.57012 532390 05ab66c0b450401fd4f1ac847fa394a2 ""
   "src/BUPT-RED/trans-logo.png" 1776580811.57012 532390 05ab66c0b450401fd4f1ac847fa394a2 ""

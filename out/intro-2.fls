@@ -431,6 +431,8 @@ INPUT /usr/local/texlive/2025/texmf-dist/tex/generic/pgf/libraries/pgflibraryfad
 INPUT /usr/local/texlive/2025/texmf-dist/tex/generic/pgf/libraries/pgflibraryfadings.code.tex
 INPUT /usr/local/texlive/2025/texmf-dist/tex/generic/pgf/frontendlayer/tikz/libraries/tikzlibrarycalc.code.tex
 INPUT /usr/local/texlive/2025/texmf-dist/tex/generic/pgf/frontendlayer/tikz/libraries/tikzlibrarycalc.code.tex
+INPUT /usr/local/texlive/2025/texmf-dist/tex/generic/pgf/frontendlayer/tikz/libraries/tikzlibraryfit.code.tex
+INPUT /usr/local/texlive/2025/texmf-dist/tex/generic/pgf/frontendlayer/tikz/libraries/tikzlibraryfit.code.tex
 INPUT /usr/local/texlive/2025/texmf-dist/tex/latex/adjustbox/adjustbox.sty
 INPUT /usr/local/texlive/2025/texmf-dist/tex/latex/adjustbox/adjustbox.sty
 INPUT /usr/local/texlive/2025/texmf-dist/tex/latex/xkeyval/xkeyval.sty
@@ -660,6 +662,12 @@ INPUT ./src/BUPT-RED/color-logo.png
 INPUT ./src/BUPT-RED/color-logo.png
 INPUT ./src/BUPT-RED/color-logo.png
 INPUT ./src/BUPT-RED/color-logo.png
+INPUT ./src/BUPT-RED/color-logo.png
+INPUT ./src/BUPT-RED/color-logo.png
+INPUT ./src/BUPT-RED/color-logo.png
+INPUT ./src/BUPT-RED/color-logo.png
+INPUT ./src/BUPT-RED/color-logo.png
+INPUT ./src/BUPT-RED/color-logo.png
 INPUT ./src/BUPT-RED/trans-logo.png
 INPUT ./src/BUPT-RED/trans-logo.png
 INPUT ./src/BUPT-RED/trans-logo.png
@@ -669,6 +677,12 @@ INPUT /Users/xinchen/Downloads/homework-all/文化/tongqu/out/intro-2.toc
 INPUT ./src/BUPT-RED/trans-logo.png
 INPUT ./src/BUPT-RED/trans-logo.png
 INPUT ./src/BUPT-RED/trans-logo.png
+INPUT ./src/BUPT-RED/color-logo.png
+INPUT ./src/BUPT-RED/color-logo.png
+INPUT ./src/BUPT-RED/color-logo.png
+INPUT ./src/BUPT-RED/color-logo.png
+INPUT ./src/BUPT-RED/color-logo.png
+INPUT ./src/BUPT-RED/color-logo.png
 INPUT ./src/BUPT-RED/color-logo.png
 INPUT ./src/BUPT-RED/color-logo.png
 INPUT ./src/BUPT-RED/color-logo.png

@@ -4,7 +4,7 @@
 \usepackage[bupt-red,zh]{collegeBeamer}
 \usepackage{amssymb}
 \usepackage{tikz}
-\usetikzlibrary{shapes, positioning, arrows.meta, backgrounds, shadows, calc}
+\usetikzlibrary{shapes, positioning, arrows.meta, backgrounds, shadows, calc, fit}
 \usepackage{adjustbox}
 \usepackage{graphicx}
 \usepackage{tabularx}
@@ -166,7 +166,9 @@
     \vspace{0.15cm}
 
     \footnotesize
-    面向 \kw{4--10 岁}儿童的\textbf{中国风 AI 绘本共创平台}——不是聊天机器人，而是一款\textbf{儿童内容创作工具}。
+    \begin{center}
+    面向 \kw{4--10 岁}儿童的\textbf{中国风 AI 绘本共创平台}
+    \end{center}
     \vspace{0.4cm}
 
     \begin{columns}[T, onlytextwidth]
@@ -176,9 +178,9 @@
               \sidehead{输入\,·\,孩子的灵感来源}
               \footnotesize
               \begin{tabular}{@{}p{0.6cm}@{}l@{}}
-                \redot & \textbf{语音}\quad 一句童言，实时 ASR \\[2pt]
-                \redot & \textbf{关键词}\quad 孩子与家长共同选择 \\[2pt]
-                \redot & \textbf{手绘草图}\quad Qwen-VL 读懂画面 \\
+                \redot & \textbf{语音}\quad 童言妙语，开启绘本世界 \\[2pt]
+                \redot & \textbf{关键词}\quad 灵感火花碰撞 \\[2pt]
+                \redot & \textbf{手绘草图}\quad 读懂童心画意 \\
               \end{tabular}
             \end{minipage}
         \end{column}
@@ -218,12 +220,12 @@
 
     {\bignum{03}}\hspace{0.55em}\textbf{\normalsize\color{darkred}文化侧}\;\textcolor{gray!70}{—}\;\textbf{共创入口缺失}\par
     \vspace{1pt}
-    中国故事传播常常停留在\kw{被动输入}——看一看、听一听，缺少\textbf{主动共创}的入口。
+    中国故事传播常常停留在\kw{被动输入}，看一看、听一听，缺少\textbf{主动共创}的入口。
     \end{minipage}
     \end{center}
 
     \ornamentrule
-    \heroline{能否让\textbf{最小的创作者}，用\textbf{最自然的方式}，生成\textbf{安全、可控、有文化质感}的中国风绘本？}
+    \heroline{让\textbf{最有想象力的创作者}，用\textbf{最自然的方式}，生成\textbf{安全、可控、有文化质感}的中国风绘本}
 \end{frame}
 
 % --- 项目目标：hero + 两栏 sidehead + 下方 alertblock 收束（仅 1 个卡片） ---
@@ -255,8 +257,8 @@
               \sidehead[accentgold]{技术目标}
               \footnotesize
               \begin{tabular}{@{}p{0.6cm}@{}l@{}}
-                \golddot & \textbf{多模态融合}\,—\,ASR + VL + 文本统一收口 \\[2pt]
-                \golddot & \textbf{风格可控}\,—\,中国风提示词增强可训练 \\[2pt]
+                \golddot & \textbf{多模态智能体}\,—\,自我规划多模态支持 \\[2pt]
+                \golddot & \textbf{质量上乘}\,—\,可训练中国风提示词增强\\[2pt]
                 \golddot & \textbf{全链路安全}\,—\,面向儿童的内容红线 \\
               \end{tabular}
             \end{minipage}
@@ -266,29 +268,52 @@
     \vspace{0.5cm}
     \begin{alertblock}{价值主张}
         \footnotesize
-        让\kw{传统中国风}成为孩子创作时\textbf{最自然的语言}，让\kw{家长}从"筛选者"变为"共创者"。
+        让成为孩子用\textbf{最自然的语言}创作独一无二的\kw{中国风}绘本，让\kw{家长}从筛选者变为共创者。
     \end{alertblock}
 \end{frame}
 
 % ==================== Approach ====================
 \section{Approach}
 
-% --- 系统总体框架：图 + 下方扁平流程 + 右侧 sidehead 设计原则 ---
+% --- 系统总体框架：后端分层 TikZ + 要点 ---
 \begin{frame}[t]{系统总体框架}
-    \vspace{-0.15cm}
+    \vspace{-0.22cm}
     \centering
-    \placeholderimageCap[0.92\linewidth]{系统整体框架图占位}
-    \vspace{0.3cm}
+    \begin{tikzpicture}[
+      scale=0.92, transform shape,
+      font=\scriptsize,
+      >=Latex,
+      layer/.style={%
+        draw=buptred!78, rounded corners=2.5pt, line width=0.85pt,
+        align=center, inner sep=5pt, fill=white, text width=0.84\linewidth},
+      masbox/.style={%
+        draw=accentgold, dashed, line width=0.95pt, rounded corners=3pt,
+        fill=lightred!28, align=center, inner sep=6pt, text width=0.84\linewidth},
+      arr/.style={-{Latex[length=2.2mm]}, line width=0.85pt, draw=buptred!55},
+    ]
+      \node[layer] (in) {%
+        \textbf{\footnotesize 输入层}\\[1pt]
+        {\color{gray!80}\scriptsize 语音 ASR\,/\,关键词\,/\,草图 VL}};
+      \node[masbox, below=0.18cm of in] (mas) {%
+        \textbf{\footnotesize Sandboxed Multi-Agents System}\\[3pt]
+        {\chip{中枢 Agent}\quad\chipG{子 Agent 系统}}\\[2pt]
+        {\color{gray!78}\tiny 编排\,+\,受控工具\,+\,领域子任务}};
+      \node[layer, fill=lightred!18, below=0.18cm of mas] (sec) {%
+        \textbf{\footnotesize 安全层（全链路）}\\[1pt]
+        {\color{gray!80}\scriptsize 输入\,/\,沙箱边界\,/\,工具与中间态\,/\,生成物}};
+      \draw[arr] (in.south) -- (mas.north);
+      \draw[arr] (mas.south) -- (sec.north);
+    \end{tikzpicture}
 
+    \vspace{0.12cm}
     \footnotesize
     \begin{columns}[T, onlytextwidth]
         \begin{column}[T]{0.58\linewidth}
-            \sidehead{四层架构\,·\,自上而下}
+            \sidehead{后端结构\,·\,与上图对应}
             \scriptsize
-            \textbf{输入层}\,\textcolor{accentgold}{$\triangleright$}\,语音 ASR / 关键词 / 草图 VL\\[2pt]
-            \textbf{中\quad 枢}\,\textcolor{accentgold}{$\triangleright$}\,Sandboxed ReAct Agent\\[2pt]
-            \textbf{领域服务}\,\textcolor{accentgold}{$\triangleright$}\,故事 / 风格 / 分镜 / 配图 / TTS\\[2pt]
-            \textbf{安全层}\,\textcolor{accentgold}{$\triangleright$}\,全链路多层守护
+            \textbf{输入层}\,\textcolor{accentgold}{$\triangleright$}\,多模态入口接入，供中枢理解与规划\\[1pt]
+            \textbf{沙箱 MAS}\,\textcolor{accentgold}{$\triangleright$}\,\textbf{中枢 Agent} 编排；\textbf{子 Agent} 承载领域子任务\\[1pt]
+            \textbf{安全层}\,\textcolor{accentgold}{$\triangleright$}\,贯穿全程，全链路透明、风险操作拦截
         \end{column}
         \begin{column}[T]{0.04\linewidth}
             \centering\textcolor{accentgold!60}{\rule{0.4pt}{3.6em}}
@@ -296,43 +321,113 @@
         \begin{column}[T]{0.36\linewidth}
             \sidehead[accentgold]{设计原则}
             \scriptsize
-            \redot \textbf{协议与实现解耦}\\[1pt]
-            \redot \textbf{编排与领域分离}\\[1pt]
-            \redot \textbf{红线硬编码}
+            \redot \textbf{沙箱隔离}\,—\,多智能体边界清晰、可审计\\[1pt]
+            \redot \textbf{编排与领域解耦}\,—\,中枢规划、子 Agent 执行\\[1pt]
+            \redot \textbf{安全现行}\,—\,全链路策略与内容红线
         \end{column}
     \end{columns}
 \end{frame}
 
-% --- 核心算法：Sandboxed ReAct：图 + 扁平流程 + chip 工具集 ---
-\begin{frame}[t]{核心算法：Sandboxed ReAct}
-    \vspace{-0.15cm}
-    \centering
-    \placeholderimageCap[0.90\linewidth]{ReAct 主循环 / 工具调用时序图占位}
-    \vspace{0.25cm}
-
+% --- 中国风故事数据库：实现思路（数据标注与工程化） ---
+\begin{frame}[t]{中国风故事数据库：标注与工程化}
+    \vspace{-0.05cm}
     \footnotesize
-
-    \centering
-    \chipG{前置硬编码}\,\textbf{\color{darkred}$\rightarrow$}\,\chip{ReAct 循环}\,\textbf{\color{darkred}$\rightarrow$}\,\chipG{后置硬编码}
-    \vspace{0.25cm}
-
-    \raggedright
+    建设面向\textbf{儿童绘本 AI}的中国传统故事\textbf{素材库}，支撑\textbf{数字化传承}与\textbf{创新应用}；与 Agent System相结合，提供\textbf{语料支持}与后续\textbf{检索召回}接口。
+    \goldrule
+    \vspace{0.08cm}
     \begin{columns}[T, onlytextwidth]
-        \begin{column}[T]{0.50\linewidth}
-            \sidehead{可用工具集\,·\,Function Calling}
+        \begin{column}[T]{0.48\linewidth}
+            \sidehead{核心元数据}
             \scriptsize
-            \texttt{analyze\_sketch}\;·\;\texttt{draft\_story}\;·\\[1pt]
-            \texttt{review\_safety}\;·\;\texttt{generate\_storyboard}\;·\\[1pt]
-            \texttt{finish\_creation}\,\textcolor{accentgold}{\textbf{(唯一正常出口)}}
+            统一标注字段，覆盖\textbf{难度、适龄、主题、人物}等，便于筛选适龄内容、主题对齐与角色一致性校验。
+            \vspace{0.32cm}
+
+            \sidehead[accentgold]{工程化流程}
+            \scriptsize
+            \redot \textbf{Markdown} 纯文本承载正文与结构\\[2pt]
+            \redot 人工收集相关故事，改写并标注
         \end{column}
         \begin{column}[T]{0.04\linewidth}
-            \centering\textcolor{accentgold!60}{\rule{0.4pt}{3.0em}}
+            \centering\textcolor{accentgold!60}{\rule{0.4pt}{5.4em}}
+        \end{column}
+        \begin{column}[T]{0.48\linewidth}
+            \sidehead[accentgold]{文化主题网络}
+            \scriptsize
+            从\textbf{创世神话}到\textbf{历史典故}，按传统文化知识块组织，形成可浏览、可扩展的\textbf{主题网络}。
+            \vspace{0.32cm}
+
+            \sidehead{在系统中的位置}
+            \scriptsize
+            仓库 \texttt{chinese-stories-database/}；当前以\textbf{离线语料}为主，中期接入 Agent 与墨韵 Ranker 的\textbf{素材底座}与评测对照集。
+        \end{column}
+    \end{columns}
+\end{frame}
+
+% --- Sandboxed MAS：中枢分发 + 子 Agent 协作 + Skills 可插拔 ---
+\begin{frame}[t]{Sandboxed Multi-Agents System}
+    \vspace{-0.22cm}
+    \centering
+    \begin{tikzpicture}[
+      scale=0.9, transform shape,
+      font=\scriptsize,
+      >=Latex,
+      hub/.style={%
+        draw=buptred!82, line width=0.9pt, rounded corners=3pt, fill=lightred!32,
+        inner sep=6pt, text width=0.78\linewidth, align=center},
+      sub/.style={%
+        draw=accentgold!88, line width=0.8pt, rounded corners=2.2pt, fill=white,
+        inner sep=4pt, text width=2.2cm, align=center},
+      arr/.style={-{Latex[length=2mm]}, line width=0.8pt, draw=buptred!55},
+      coop/.style={%
+        {Latex[length=1.5mm]}-{Latex[length=1.5mm]},
+        dashed, draw=accentgold!68, line width=0.55pt},
+      skl/.style={%
+        draw=gray!55, dashed, rounded corners=1.8pt, fill=accentgold!8,
+        inner sep=2pt, font=\tiny, text=darkred},
+    ]
+      \node[hub] (H) {%
+        \textbf{\footnotesize 中枢 Agent（编排与分发）}\\[2pt]
+        {\color{gray!82}\scriptsize 解析用户意图 \,$\rightarrow$\, 拆分子任务 \,$\rightarrow$\, 调度子 Agent \,$\rightarrow$\, 聚合与一致性校验}};
+      \node[sub] (A) at ($(H.south)+(-2.55cm,-0.88cm)$) {\textbf{叙事}\\[-1pt]{\tiny 故事与素材}};
+      \node[sub] (B) at ($(H.south)+(0,-0.88cm)$) {\textbf{分镜}\\[-1pt]{\tiny 节奏与旁白}};
+      \node[sub] (C) at ($(H.south)+(2.55cm,-0.88cm)$) {\textbf{成书}\\[-1pt]{\tiny 画面与朗读}};
+      \coordinate (fork) at ($(H.south)+(0,-0.32cm)$);
+      \draw[arr] (H.south) -- (fork);
+      \draw[arr] (fork) -| (A.north);
+      \draw[arr] (fork) -- (B.north);
+      \draw[arr] (fork) -| (C.north);
+      \draw[coop] (A.east) -- (B.west);
+      \draw[coop] (B.east) -- (C.west);
+      \begin{scope}[on background layer]
+        \node[fit=(A)(B)(C), inner sep=7pt, rounded corners=4pt,
+          draw=accentgold, dashed, line width=0.75pt, fill=lightred!10,
+          label={[font=\tiny, text=accentgold!90!black, yshift=-3pt]below:\textbf{子 Agent 协作域}}] {};
+      \end{scope}
+      \node[anchor=north, font=\tiny, text=darkred] (Sk) at ($(B.south)+(0,-0.62cm)$) {\textbf{Skills}};
+      \node[skl, anchor=north] at ($(Sk.south)+(-2.9cm,-0.06cm)$) {草图理解};
+      \node[skl, anchor=north] at ($(Sk.south)+(-1.0cm,-0.06cm)$) {故事生成};
+      \node[skl, anchor=north] at ($(Sk.south)+(0.9cm,-0.06cm)$) {分镜编排};
+      \node[skl, anchor=north] at ($(Sk.south)+(2.8cm,-0.06cm)$) {合规审查};
+      \draw[arr, draw=gray!50] (A.south) -- ++(0,-0.18) -| ($(Sk.north west)!0.2!(Sk.north)$);
+      \draw[arr, draw=gray!50] (B.south) -- ++(0,-0.12) -- (Sk.north);
+      \draw[arr, draw=gray!50] (C.south) -- ++(0,-0.18) -| ($(Sk.north east)!0.8!(Sk.north)$);
+    \end{tikzpicture}
+
+    \vspace{0.1cm}
+    \footnotesize
+    \begin{columns}[T, onlytextwidth]
+        \begin{column}[T]{0.50\linewidth}
+            \sidehead{Skills 机制}
+            \scriptsize
+            以 \textbf{Skill} 封装可调用能力，\textbf{注册}统一管理；中枢与各子 Agent \textbf{按需挂载}，新能力\textbf{即插即用}。
+        \end{column}
+        \begin{column}[T]{0.04\linewidth}
+            \centering\textcolor{accentgold!60}{\rule{0.4pt}{4.0em}}
         \end{column}
         \begin{column}[T]{0.46\linewidth}
-            \sidehead[accentgold]{硬编码两端}
+            \sidehead[accentgold]{协作方式}
             \scriptsize
-            \textbf{前置}\;\texttt{filter\_input}\,黑名单 + 引导改写\\[1pt]
-            \textbf{后置}\;\texttt{finalize\_from\_structured}\\\phantom{后置\,}配图 + TTS + 终审
+            中枢Agent维护\textbf{会话沙箱}与任务边界，向子 Agent \textbf{分发子任务}；子 Agent 通过\textbf{消息与共享}协同推进，必要时\textbf{串行 / 并行}；最终由中枢\textbf{汇总}后进入成书与安全链路。
         \end{column}
     \end{columns}
 \end{frame}
@@ -370,11 +465,54 @@
 % ==================== Progress ====================
 \section{Progress}
 
+% --- 中国风故事数据库：当前规模（内容来自总览，非插图） ---
+\begin{frame}[t]{现有进展：中国风故事数据库}
+    \vspace{-0.06cm}
+    \begin{center}
+    \begin{minipage}{0.92\linewidth}
+        \sidehead{项目定位}
+        \footnotesize
+        建设\textbf{中国传统故事素材库}，服务儿童绘本类 AI 工具，推动传统文化的\textbf{数字化传承}与\textbf{创新应用}。
+    \end{minipage}
+    \end{center}
+    \goldrule
+    \vspace{0.14cm}
+
+    \footnotesize
+    \begin{columns}[T, onlytextwidth]
+        \begin{column}[T]{0.48\linewidth}
+            \raggedright
+            \sidehead{故事结构化总量}
+            \vspace{1pt}
+            {\fontsize{18}{20}\selectfont\bfseries\color{buptred}93}\;\normalsize 篇已结构化入库 \quad 累计约 \kw{6.5\,万}字
+            \vspace{0.30cm}
+
+            \sidehead[accentgold]{内容分类构成}
+            \vspace{1pt}
+            \scriptsize
+            民间故事 \textbf{28} \quad|\quad 神话传说 \textbf{22} \quad|\quad 经典名著 \textbf{43}
+        \end{column}
+        \begin{column}[T]{0.48\linewidth}
+            \raggedright
+            \sidehead{核心元数据维度}
+            \vspace{1pt}
+            \scriptsize
+            {\fontsize{16}{18}\selectfont\bfseries\color{buptred}9}\;个精炼字段：难度、适龄、主题、人物等，支撑检索与适龄筛选。
+            \vspace{0.30cm}
+
+            \sidehead[accentgold]{文化主题网络覆盖}
+            \vspace{1pt}
+            \scriptsize
+            {\fontsize{16}{18}\selectfont\bfseries\color{accentgold}10}\;块传统文化知识：自创世神话至历史典故，形成可扩展主题网络。
+        \end{column}
+    \end{columns}
+\end{frame}
+
 % --- 后端架构：hero 替代 block + 表格 + 底部 chip 式 API ---
 \begin{frame}[t]{现有进展：系统后端架构}
     \vspace{-0.1cm}
     \noindent\textcolor{buptred}{\rule[-0.15em]{2.5pt}{1em}}\hspace{0.5em}%
-    \textbf{\small\color{darkred}\texttt{tongqu-agent-backend}}\;\textcolor{gray!80}{·}\;\textit{\footnotesize FastAPI + Sandboxed ReAct\,—\,三层业务目录 + 训练资产}
+    \textbf{\small\color{darkred}\texttt{tongqu-agent-backend}}\;\textcolor{gray!80}{·}\;
     \goldrule
 
     \centering
@@ -384,8 +522,8 @@
         \rowcolor{buptred}
         \color{white}\bfseries 模块 & \color{white}\bfseries\hspace{0pt}职责 \& 关键实现 \\
         \tablerowodd \texttt{core/} & 类型协议（\texttt{Scene}、LLM/Image/TTS Protocol）、\kw{SafetyMiddleware}、DashScope / Gemini / Green / NLS 客户端 \\
-        \tableroweven \texttt{agent/} & \kw{Sandboxed ReAct 主循环}、工具 Schema（Pydantic）、Function Calling 异常回灌与 Self-Correction \\
-        \tablerowodd \texttt{services/} & \kw{StorybookPipeline} 成书流水线、\texttt{sketch\_service}、\texttt{asr\_service}、风格增强挂钩 \\
+        \tableroweven \texttt{agent/} & \kw{Sandboxed 多智能体编排}、\textbf{Skills} 注册与挂载、Schema（Pydantic）、异常处理与 Self-Correction \\
+        \tablerowodd \texttt{services/} & \kw{StorybookPipeline}、\texttt{sketch\_service}、\texttt{asr\_service}、墨韵Ranker \\
         \tableroweven \texttt{training/} & 风格关键词 Ranker 数据集 / 模型 / 训练脚本与产物 \\
     \end{tabular}
     \renewcommand{\arraystretch}{1.0}
@@ -406,14 +544,14 @@
     \goldrule\vspace{0.1cm}
 
     \footnotesize
-    自研的中国风\textbf{提示词增强器}：接管画面的\kw{笔触 / 构图 / 材质 / 光感 / 色调 / 氛围}——\textit{只改画面，不新增角色、不改变剧情}。
+    由AK4Prompt(IJCAI 2024)得到灵感，自训练的中国风\textbf{提示词增强器}：优化画面的\kw{笔触、构图、色调、氛围}等，提高生成图的\kw{中国风美学效果}。
 
     \vspace{0.45cm}
     \begin{columns}[T, onlytextwidth]
         \begin{column}[T]{0.46\linewidth}
             \sidehead{静态词库\,·\,\texttt{style\_keywords.json}}
             \scriptsize
-            面向\kw{剪纸 / 水墨 / 皮影 / 漫画}四种风格，按\textbf{构图、笔触、材质、氛围、色调、装饰、造型、光感、空间、线条、上色}多类目组织提示词。
+            面向\kw{剪纸 / 水墨 / 皮影 / 漫画}四种风格，由中国风故事数据库提取而来，按\textbf{构图、笔触、材质、氛围、色调}等多类目组织关键词。
         \end{column}
         \begin{column}[T]{0.04\linewidth}
             \centering\textcolor{accentgold!60}{\rule{0.4pt}{3.6em}}
@@ -421,12 +559,9 @@
         \begin{column}[T]{0.46\linewidth}
             \sidehead[accentgold]{可训练 Ranker}
             \scriptsize
-            在 \texttt{training/} 下训练\kw{风格关键词 Ranker}，从词库为当前故事\textbf{打分排序}；失败时回退\textbf{规则启发式}，保证鲁棒。
+            在 \texttt{training/} 下训练\kw{风格关键词 Ranker}，从词库为当前故事\textbf{打分排序}，精选最能激发\kw{中国风美学}的提示词，显著提升生图的\textbf{画面意境与风格一致性}。
         \end{column}
     \end{columns}
-
-    \vspace{0.45cm}
-    \heroline{与 ReAct 主链路对齐：API 响应透出 \texttt{style\_enhancement} 字段，\textbf{可观测\,·\,可评测\,·\,可 A/B}。}
 \end{frame}
 
 % --- 前端进展：hero + 两栏 check list，无卡片 ---
@@ -437,14 +572,14 @@
     \goldrule
 
     \footnotesize
-    TypeScript 全量类型化；\kw{移动端友好}；面向儿童的\textbf{大字\,·\,大按钮\,·\,弱文字依赖}视觉语言。
+    平板、PC自适应UI；\kw{移动端友好}；面向儿童的\textbf{大字\,·\,大按钮\,·\,弱文字依赖}视觉语言。
 
     \vspace{0.35cm}
     \begin{columns}[T, onlytextwidth]
         \begin{column}[T]{0.48\linewidth}
             \sidehead{创作入口}
             \scriptsize
-            \textcolor{accentred}{\checkmark}\; \textbf{VoiceInput}\,—\,实时语音录入 \& 波形可视化\\[2pt]
+            \textcolor{accentred}{\checkmark}\; \textbf{VoiceInput}\,—\,实时语音录入\\[2pt]
             \textcolor{accentred}{\checkmark}\; \textbf{SketchPad}\,—\,儿童手绘画板\\[2pt]
             \textcolor{accentred}{\checkmark}\; \textbf{KeywordsSelector / StyleSelector}\\\phantom{\textcolor{accentred}{\checkmark}}\;\;关键词与风格卡片选择
         \end{column}
@@ -461,7 +596,7 @@
     \end{columns}
 
     \vspace{0.35cm}
-    \heroline{整体视觉参考国风插画，动效走\textbf{轻量、温和、非打扰}风格。}
+    \heroline{整体视觉参考新国风插画，精选传统配色。\textbf{典雅、活泼、富有生趣}。}
 \end{frame}
 
 % ==================== Roadmap ====================
@@ -475,26 +610,26 @@
     \begin{columns}[T, onlytextwidth]
         \begin{column}[T]{0.32\linewidth}
             \centering\bignum{01}\par\vspace{2pt}
-            \centering\textbf{\small 短期\,·\,1--2 个月}
+            \centering\textbf{\small 短期\,·\,1--2周}
             \par\vspace{4pt}
             \noindent\textcolor{accentgold!60}{\rule{\linewidth}{0.4pt}}
             \par\vspace{4pt}\raggedright\scriptsize
-            \redot 前后端\kw{端到端联调}与线上部署\\[3pt]
-            \redot 小范围\kw{儿童 / 家长可用性}测试\\[3pt]
-            \redot 完善\textbf{家长审阅后台}与拦截日志可视化
+            \redot 前后端\kw{端到端稳定性联调}\\[3pt]
+            \redot 拓展更多数据库内容\\[3pt]
+            \redot 完善内容过滤与检索增强，提高可用性
         \end{column}
         \begin{column}[T]{0.02\linewidth}
             \centering\textcolor{accentgold!60}{\rule{0.4pt}{4.6em}}
         \end{column}
         \begin{column}[T]{0.32\linewidth}
             \centering\bignumG{02}\par\vspace{2pt}
-            \centering\textbf{\small 中期\,·\,学期末}
+            \centering\textbf{\small 中期\,·\,结题汇报}
             \par\vspace{4pt}
             \noindent\textcolor{accentgold!60}{\rule{\linewidth}{0.4pt}}
             \par\vspace{4pt}\raggedright\scriptsize
-            \golddot 墨韵 Ranker \kw{数据集扩充}与重训\\[3pt]
-            \golddot 接入\kw{中国故事数据库}（山海经等）\\[3pt]
-            \golddot \textbf{情感化 TTS}与多角色配音
+            \golddot 墨韵 Ranker \kw{数据集扩充}与进一步训练\\[3pt]
+            \golddot 测试完善整个Agent工作链路\\[3pt]
+            \golddot \textbf{情感化 TTS}与配音
         \end{column}
         \begin{column}[T]{0.02\linewidth}
             \centering\textcolor{accentgold!60}{\rule{0.4pt}{4.6em}}
@@ -506,7 +641,7 @@
             \noindent\textcolor{accentgold!60}{\rule{\linewidth}{0.4pt}}
             \par\vspace{4pt}\raggedright\scriptsize
             \redot 个性化\kw{儿童成长画像}与 Agent 记忆\\[3pt]
-            \redot 家庭\kw{共创模式}：家长—孩子协同写书\\[3pt]
+            \redot 家庭\kw{共创模式}，家长与孩子协同写书\\[3pt]
             \redot 走向\textbf{中国文化共创社区}
         \end{column}
     \end{columns}
