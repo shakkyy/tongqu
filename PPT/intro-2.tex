@@ -171,42 +171,56 @@
 
     \begin{columns}[T, onlytextwidth]
         \begin{column}[T]{0.46\linewidth}
-            \sidehead{输入\,·\,孩子的灵感来源}
-            \footnotesize
-            \begin{tabular}{@{}p{0.6cm}@{}l@{}}
-              \redot & \textbf{语音}\quad 一句童言，实时 ASR \\[2pt]
-              \redot & \textbf{关键词}\quad 孩子与家长共同选择 \\[2pt]
-              \redot & \textbf{手绘草图}\quad Qwen-VL 读懂画面 \\
-            \end{tabular}
+            \centering
+            \begin{minipage}[t]{5.8cm}
+              \sidehead{输入\,·\,孩子的灵感来源}
+              \footnotesize
+              \begin{tabular}{@{}p{0.6cm}@{}l@{}}
+                \redot & \textbf{语音}\quad 一句童言，实时 ASR \\[2pt]
+                \redot & \textbf{关键词}\quad 孩子与家长共同选择 \\[2pt]
+                \redot & \textbf{手绘草图}\quad Qwen-VL 读懂画面 \\
+              \end{tabular}
+            \end{minipage}
         \end{column}
         \begin{column}[T]{0.04\linewidth}
             \centering\textcolor{accentgold!60}{\rule{0.4pt}{3.4em}}
         \end{column}
         \begin{column}[T]{0.46\linewidth}
-            \sidehead[accentgold]{输出\,·\,可交付的中国风绘本}
-            \footnotesize
-            \begin{tabular}{@{}p{0.6cm}@{}l@{}}
-              \golddot & \textbf{可读}\quad 完整故事 + 分镜旁白 \\[2pt]
-              \golddot & \textbf{可看}\quad 水墨 / 剪纸 / 皮影 / 漫画 \\[2pt]
-              \golddot & \textbf{可听}\quad 情感化朗读音频 \\
-            \end{tabular}
+            \centering
+            \begin{minipage}[t]{5.8cm}
+              \sidehead[accentgold]{输出\,·\,可交付的中国风绘本}
+              \footnotesize
+              \begin{tabular}{@{}p{0.6cm}@{}l@{}}
+                \golddot & \textbf{可读}\quad 完整故事 + 分镜旁白 \\[2pt]
+                \golddot & \textbf{可看}\quad 水墨 / 剪纸 / 皮影 / 漫画 \\[2pt]
+                \golddot & \textbf{可听}\quad 情感化朗读音频 \\
+              \end{tabular}
+            \end{minipage}
         \end{column}
     \end{columns}
 \end{frame}
 
-% --- 痛点洞察：01 / 02 / 03 大号数字版式，无卡片 ---
+% --- 痛点洞察：01 / 02 / 03 大号数字版式，整块水平居中 ---
 \begin{frame}[t]{痛点洞察}
-    \vspace{0.2cm}
+    \vspace{0.25cm}
     \footnotesize
+    \begin{center}
+    \begin{minipage}{0.86\linewidth}
+    {\bignum{01}}\hspace{0.55em}\textbf{\normalsize\color{darkred}儿童侧}\;\textcolor{gray!70}{—}\;\textbf{想象力强，工具门槛高}\par
+    \vspace{1pt}
+    孩子天生\kw{想象力丰富}，却缺少低门槛的表达工具——不会打字、不熟流程，更不会 Prompt。
+    \par\vspace{10pt}
 
-    \noindent\begin{tabular}{@{}p{1.0cm}@{\hspace{0.3em}}p{11.2cm}@{}}
-      \bignum{01} & \textbf{\normalsize\color{darkred}儿童侧}\;\textcolor{gray!70}{—}\;\textbf{想象力强，工具门槛高} \\[1pt]
-      & 孩子天生\kw{想象力丰富}，却缺少低门槛的表达工具——不会打字、不熟流程，更不会 Prompt。 \\[0.55em]
-      \bignum{02} & \textbf{\normalsize\color{darkred}家长侧}\;\textcolor{gray!70}{—}\;\textbf{优质内容筛选成本高} \\[1pt]
-      & 家长希望孩子接触\kw{优质内容}，要么筛选成本高，要么参与感低，难以形成陪伴式使用。 \\[0.55em]
-      \bignum{03} & \textbf{\normalsize\color{darkred}文化侧}\;\textcolor{gray!70}{—}\;\textbf{共创入口缺失} \\[1pt]
-      & 中国故事传播常常停留在\kw{被动输入}——看一看、听一听，缺少\textbf{主动共创}的入口。 \\
-    \end{tabular}
+    {\bignum{02}}\hspace{0.55em}\textbf{\normalsize\color{darkred}家长侧}\;\textcolor{gray!70}{—}\;\textbf{优质内容筛选成本高}\par
+    \vspace{1pt}
+    家长希望孩子接触\kw{优质内容}，要么筛选成本高，要么参与感低，难以形成陪伴式使用。
+    \par\vspace{10pt}
+
+    {\bignum{03}}\hspace{0.55em}\textbf{\normalsize\color{darkred}文化侧}\;\textcolor{gray!70}{—}\;\textbf{共创入口缺失}\par
+    \vspace{1pt}
+    中国故事传播常常停留在\kw{被动输入}——看一看、听一听，缺少\textbf{主动共创}的入口。
+    \end{minipage}
+    \end{center}
 
     \ornamentrule
     \heroline{能否让\textbf{最小的创作者}，用\textbf{最自然的方式}，生成\textbf{安全、可控、有文化质感}的中国风绘本？}
@@ -221,31 +235,37 @@
 
     \begin{columns}[T, onlytextwidth]
         \begin{column}[T]{0.46\linewidth}
-            \sidehead{产品目标}
-            \footnotesize
-            \begin{tabular}{@{}p{0.6cm}@{}l@{}}
-              \redot & \textbf{低门槛}\,—\,语音 / 涂鸦即可启动创作 \\[2pt]
-              \redot & \textbf{高完成度}\,—\,一次生成完整绘本交付 \\[2pt]
-              \redot & \textbf{可沉淀}\,—\,绘本可收藏、分享、复读 \\
-            \end{tabular}
+            \centering
+            \begin{minipage}[t]{5.8cm}
+              \sidehead{产品目标}
+              \footnotesize
+              \begin{tabular}{@{}p{0.6cm}@{}l@{}}
+                \redot & \textbf{低门槛}\,—\,语音 / 涂鸦即可启动创作 \\[2pt]
+                \redot & \textbf{高完成度}\,—\,一次生成完整绘本交付 \\[2pt]
+                \redot & \textbf{可沉淀}\,—\,绘本可收藏、分享、复读 \\
+              \end{tabular}
+            \end{minipage}
         \end{column}
         \begin{column}[T]{0.04\linewidth}
             \centering\textcolor{accentgold!60}{\rule{0.4pt}{3.4em}}
         \end{column}
         \begin{column}[T]{0.46\linewidth}
-            \sidehead[accentgold]{技术目标}
-            \footnotesize
-            \begin{tabular}{@{}p{0.6cm}@{}l@{}}
-              \golddot & \textbf{多模态融合}\,—\,ASR + VL + 文本统一收口 \\[2pt]
-              \golddot & \textbf{风格可控}\,—\,中国风提示词增强可训练 \\[2pt]
-              \golddot & \textbf{全链路安全}\,—\,面向儿童的内容红线 \\
-            \end{tabular}
+            \centering
+            \begin{minipage}[t]{5.8cm}
+              \sidehead[accentgold]{技术目标}
+              \footnotesize
+              \begin{tabular}{@{}p{0.6cm}@{}l@{}}
+                \golddot & \textbf{多模态融合}\,—\,ASR + VL + 文本统一收口 \\[2pt]
+                \golddot & \textbf{风格可控}\,—\,中国风提示词增强可训练 \\[2pt]
+                \golddot & \textbf{全链路安全}\,—\,面向儿童的内容红线 \\
+              \end{tabular}
+            \end{minipage}
         \end{column}
     \end{columns}
 
     \vspace{0.5cm}
-    \begin{alertblock}{}
-        \footnotesize\centering
+    \begin{alertblock}{价值主张}
+        \footnotesize
         让\kw{传统中国风}成为孩子创作时\textbf{最自然的语言}，让\kw{家长}从"筛选者"变为"共创者"。
     \end{alertblock}
 \end{frame}
