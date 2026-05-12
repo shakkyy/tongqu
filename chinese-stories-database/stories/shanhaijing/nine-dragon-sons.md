@@ -9,6 +9,16 @@ word_count: 780
 tags: [龙, 九子, 神兽, 文化]
 themes: [文化, 智慧, 多样性]
 characters: [龙, 囚牛, 睚眦, 嘲风, 蒲牢, 狻猊, 赑屃, 狴犴, 负屃, 螭吻]
+culture_type: dragon-culture
+rag_keywords: [龙生九子, 龙子, 不同性格, 传统建筑, 纹样, 钟, 屋脊, 各有所长]
+core_idea: 每个孩子都有不同特点，各自的本领都能在合适地方发光。
+child_friendly_takeaway: 不用和别人一模一样，找到自己的长处也能帮助大家。
+values: [尊重差异, 自我认识, 合作]
+visual_motifs: [龙纹, 屋脊兽, 古钟, 石碑, 祥云]
+usable_story_seeds: [九个小龙子一起修游乐场, 孩子寻找适合自己的小岗位, 不同龙纹帮大家完成任务]
+avoid_direct_copy: [不要复述复杂排行和神兽考据, 不要制造谁更厉害的比较, 不要写凶猛压迫形象]
+safety_notes: 龙子形象应亲切可爱，避免恐怖或等级比较。
+integration_prompt: 可借鉴龙子各有所长和建筑纹样意象，生成认识自我与团队合作故事。
 ---
 
 # 🐉 龙生九子

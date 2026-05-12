@@ -9,6 +9,16 @@ word_count: 740
 tags: [仓颉, 汉字, 文字, 文明]
 themes: [智慧, 创造, 文明]
 characters: [仓颉, 黄帝]
+culture_type: origin-myth
+rag_keywords: [仓颉造字, 汉字, 文字, 脚印, 观察, 记录, 符号, 学习]
+core_idea: 文字来自对自然和生活的细心观察，能帮助人们记录与交流。
+child_friendly_takeaway: 孩子可以从身边形状发现文字的秘密，学会用符号表达想法。
+values: [学习, 观察, 表达, 创造]
+visual_motifs: [鸟兽足迹, 竹简, 星空, 象形符号, 毛笔]
+usable_story_seeds: [孩子在沙地脚印里发现文字灵感, 主角用图形记录一天的发现, 伙伴们创造班级小符号]
+avoid_direct_copy: [不要复述仓颉造字的神异细节, 不要写成文字起源百科, 不要照搬古人造字流程]
+safety_notes: 避免神秘惊吓表达，突出观察、记录和学习乐趣。
+integration_prompt: 可借鉴足迹、象形符号和造字主题，生成儿童识字与表达故事。
 ---
 
 # ✍️ 仓颉造字

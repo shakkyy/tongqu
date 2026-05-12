@@ -9,6 +9,16 @@ word_count: 920
 tags: [孙悟空, 天宫, 反抗, 如来]
 themes: [反抗, 成长, 后果]
 characters: [孙悟空, 玉帝, 如来佛祖, 二郎神]
+culture_type: classic-novel-adaptation
+rag_keywords: [西游记, 唐僧, 孙悟空, 五行山, 师徒, 承诺, 出发, 陪伴]
+core_idea: 相遇和承诺让不同性格的伙伴开始共同成长。
+child_friendly_takeaway: 孩子可以学习守约定、听建议，也用自己的本领帮助团队。
+values: [守信, 陪伴, 合作, 成长]
+visual_motifs: [五行山, 小猴, 行囊, 山路, 金色头箍纹样]
+usable_story_seeds: [孩子遇见被困的小猴并一起约定帮助别人, 两个不同性格伙伴开始旅行, 主角学会把本领用在团队里]
+avoid_direct_copy: [不要复述压在五行山下的惩罚细节, 不要强调紧箍咒控制, 不要照搬师徒权力关系]
+safety_notes: 将约束转为约定和互相提醒，避免控制和惩罚感。
+integration_prompt: 可借鉴师徒相遇、出发和承诺主题，生成儿童伙伴成长故事。
 ---
 
 # ⚡ 孙悟空大闹天宫

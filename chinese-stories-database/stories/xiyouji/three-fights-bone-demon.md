@@ -9,6 +9,16 @@ word_count: 820
 tags: [孙悟空, 白骨精, 唐僧, 误会]
 themes: [坚持, 信任, 辨别是非]
 characters: [孙悟空, 白骨精, 唐僧, 猪八戒]
+culture_type: classic-novel-adaptation
+rag_keywords: [西游记, 白骨精, 分辨真假, 观察, 信任, 误会, 团队, 安全]
+core_idea: 遇到复杂情况要细心观察，也要和伙伴好好沟通避免误会。
+child_friendly_takeaway: 孩子可以学习不轻信陌生危险，也不要急着误会朋友。
+values: [辨别能力, 沟通, 信任, 安全意识]
+visual_motifs: [山路, 变化影子, 行囊, 云雾, 保护圈]
+usable_story_seeds: [孩子和伙伴辨认真假邀请卡, 主角通过观察发现安全线索, 团队解开误会重新合作]
+avoid_direct_copy: [不要复述三次打杀白骨精情节, 不要描写妖怪吃人, 不要写暴力识别坏人]
+safety_notes: 安全教育应温和呈现，不制造陌生人恐惧和暴力解决。
+integration_prompt: 可借鉴分辨真假和团队误会主题，改写为儿童安全判断故事。
 ---
 
 # 💀 三打白骨精

@@ -14,6 +14,16 @@ illustration_prompts:
   - scene1: "花果山瀑布飞流，景色如画"
   - scene2: "小猴子勇敢地跳进水帘洞"
   - scene3: "众猴拜小猴子为美猴王"
+culture_type: classic-novel-adaptation
+rag_keywords: [西游记, 石猴出世, 花果山, 水帘洞, 猴子, 探索, 勇气, 发现]
+core_idea: 好奇心和勇气能带领大家发现新天地，但探索也要照顾伙伴安全。
+child_friendly_takeaway: 孩子可以勇敢探索，同时记得观察、合作和保护自己。
+values: [勇气, 探索, 合作, 安全意识]
+visual_motifs: [花果山, 水帘洞, 石猴, 瀑布, 桃树]
+usable_story_seeds: [小猴带伙伴发现安全的秘密山洞, 孩子们一起探索瀑布后的彩虹, 主角成为照顾大家的小队长]
+avoid_direct_copy: [不要复述石猴称王全过程, 不要鼓励危险跳瀑布, 不要强化谁当王的等级感]
+safety_notes: 探索场景要安全化，突出团队照顾而非冒险逞强。
+integration_prompt: 可借鉴花果山、水帘洞和探索意象，生成儿童冒险与合作故事。
 ---
 
 # 🐒 石猴出世

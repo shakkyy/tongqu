@@ -9,6 +9,16 @@ word_count: 520
 tags: [比翼鸟, 爱情, 相伴]
 themes: [爱情, 相伴, 友谊]
 characters: [比翼鸟]
+culture_type: shanhaijing-creature
+rag_keywords: [比翼鸟, 山海经, 双鸟, 陪伴, 合作, 飞翔, 神鸟, 成双]
+core_idea: 有些事情需要彼此配合才能飞得更远。
+child_friendly_takeaway: 好朋友可以互补短处、一起完成单独做不到的事。
+values: [合作, 陪伴, 互补, 友谊]
+visual_motifs: [双翼神鸟, 云海, 彩羽, 山林, 晨光]
+usable_story_seeds: [两只小鸟练习一起飞越山谷, 孩子和伙伴各出一半力量完成风筝, 比翼鸟教大家配合节奏]
+avoid_direct_copy: [不要写成成人爱情象征, 不要照搬古籍异兽描述, 不要描写分离悲剧]
+safety_notes: 突出友谊与合作，避免成人化爱情隐喻。
+integration_prompt: 可借鉴比翼鸟成双飞翔的视觉意象，创作儿童协作故事。
 ---
 
 # 🕊️ 比翼鸟传说

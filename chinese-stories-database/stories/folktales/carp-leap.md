@@ -9,6 +9,16 @@ word_count: 650
 tags: [鲤鱼, 龙门, 努力, 成功]
 themes: [努力, 坚持, 梦想]
 characters: [小鲤鱼, 鲤鱼奶奶]
+culture_type: folktale-auspicious
+rag_keywords: [鲤鱼跳龙门, 鲤鱼, 龙门, 努力, 成长, 河流, 梦想, 坚持]
+core_idea: 通过努力和坚持完成成长跃迁，梦想需要一步步练习。
+child_friendly_takeaway: 只要愿意练习和相信自己，小小的孩子也能跨过自己的龙门。
+values: [坚持, 自信, 成长, 勇气]
+visual_motifs: [金色鲤鱼, 龙门, 浪花, 彩云, 河流]
+usable_story_seeds: [小鱼练习跳过彩虹石桥, 孩子陪鲤鱼寻找自己的龙门, 伙伴们一起为小鲤鱼加油]
+avoid_direct_copy: [不要复述鲤鱼变龙的完整原情节, 不要把成功写成只靠一次奇迹, 不要制造失败羞辱]
+safety_notes: 强调过程和努力，避免用输赢评价孩子价值。
+integration_prompt: 可借鉴鲤鱼、龙门、浪花和成长寓意，转化为儿童自信练习故事。
 ---
 
 # 🐟 鲤鱼跳龙门

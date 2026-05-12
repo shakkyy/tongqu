@@ -64,5 +64,31 @@ class AppConfig:
         str(Path(__file__).resolve().parent / "training" / "artifacts" / "style_keyword_ranker"),
     )
 
+    # ========== 中国传统文化 RAG 语料库 ==========
+    CULTURE_RAG_CORPUS_PATH: str = os.getenv(
+        "CULTURE_RAG_CORPUS_PATH",
+        str(Path(__file__).resolve().parents[1] / "chinese-stories-database"),
+    )
+    CULTURE_RAG_TOP_K: int = int(os.getenv("CULTURE_RAG_TOP_K", "3"))
+    CULTURE_RAG_MIN_SCORE: float = float(os.getenv("CULTURE_RAG_MIN_SCORE", "0.18"))
+    CULTURE_RAG_EMBEDDING_ENABLED: bool = (
+        (os.getenv("CULTURE_RAG_EMBEDDING_ENABLED", "1").strip().lower())
+        not in {"0", "false", "no"}
+    )
+    CULTURE_RAG_EMBEDDING_MODEL: str = os.getenv(
+        "CULTURE_RAG_EMBEDDING_MODEL",
+        "BAAI/bge-large-zh-v1.5",
+    )
+    CULTURE_RAG_EMBEDDING_LOCAL_ONLY: bool = (
+        (os.getenv("CULTURE_RAG_EMBEDDING_LOCAL_ONLY", "1").strip().lower())
+        not in {"0", "false", "no"}
+    )
+    CULTURE_RAG_KEYWORD_WEIGHT: float = float(os.getenv("CULTURE_RAG_KEYWORD_WEIGHT", "0.55"))
+    CULTURE_RAG_EMBEDDING_WEIGHT: float = float(os.getenv("CULTURE_RAG_EMBEDDING_WEIGHT", "0.45"))
+    CULTURE_RAG_MAX_RETURN: int = int(os.getenv("CULTURE_RAG_MAX_RETURN", "2"))
+    CULTURE_RAG_RELATIVE_SCORE_DROP: float = float(
+        os.getenv("CULTURE_RAG_RELATIVE_SCORE_DROP", "0.22")
+    )
+
 
 CONFIG = AppConfig()

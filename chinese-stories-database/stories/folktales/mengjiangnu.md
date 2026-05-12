@@ -9,6 +9,16 @@ word_count: 950
 tags: [孟姜女, 长城, 爱情, 忠贞]
 themes: [忠贞, 勇气, 爱情]
 characters: [孟姜女, 范喜良, 秦始皇]
+culture_type: folktale-historical
+rag_keywords: [孟姜女, 长城, 思念, 家人, 等待, 冬衣, 眼泪, 团聚]
+core_idea: 思念家人和守护亲情是朴素而真挚的情感。
+child_friendly_takeaway: 想念重要的人时，可以用关心、信件和行动表达爱。
+values: [亲情, 坚强, 关心家人]
+visual_motifs: [长城, 冬衣, 风雪, 灯火, 远路]
+usable_story_seeds: [孩子给远方家人送温暖包裹, 长城边的小灯帮大家传递问候, 主角学会把想念说出口]
+avoid_direct_copy: [不要复述哭倒长城和丈夫死亡情节, 不要描写沉重徭役苦难, 不要强化绝望哭泣]
+safety_notes: 保留亲情与思念，弱化死亡、压迫和过度悲伤。
+integration_prompt: 可借鉴长城、冬衣和思念亲人的主题，转化为温暖守护故事。
 ---
 
 # 😢 孟姜女哭长城

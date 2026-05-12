@@ -4,6 +4,7 @@ title: 登鹳雀楼
 poem: 登鹳雀楼
 poet: 王之涣
 dynasty: 唐
+source: 唐诗《登鹳雀楼》
 original_text: |
   白日依山尽，
   黄河入海流。
@@ -16,6 +17,16 @@ word_count: 650
 tags: [王之涣, 黄河, 高楼, 志向]
 themes: [志向远大, 登高望远]
 characters: [王之涣]
+culture_type: ancient-poem
+rag_keywords: [登高, 远方, 黄河, 白日, 山河, 视野, 楼阁, 进步]
+core_idea: 站得更高才能看得更远，努力前进一步会打开新的视野。
+child_friendly_takeaway: 遇到问题时可以一步一步向上走，新的高度会带来新的发现。
+values: [坚持, 进取, 开阔眼界]
+visual_motifs: [高楼, 夕阳, 黄河, 远山, 飞鸟]
+usable_story_seeds: [孩子爬上小楼寻找远方的风景, 伙伴们一起搭观景台看河流, 主角每上一阶就发现一种新颜色]
+avoid_direct_copy: [不要逐句复述原诗, 不要写成王之涣登楼传记, 不要把故事变成背诗课堂]
+safety_notes: 避免危险攀爬描写，登高场景应有成人陪伴或安全设施。
+integration_prompt: 可借鉴登高望远、黄河夕阳和更上一层楼的意象，转化为儿童成长与探索故事。
 ---
 
 # 🏯 登鹳雀楼

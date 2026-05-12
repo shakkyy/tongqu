@@ -9,6 +9,16 @@ word_count: 620
 tags: [猪八戒, 孙悟空, 高老庄, 拜师]
 themes: [改过, 合作, 师徒]
 characters: [猪八戒, 孙悟空, 唐僧]
+culture_type: classic-novel-adaptation
+rag_keywords: [西游记, 猪八戒, 加入团队, 贪吃, 幽默, 改正, 合作, 高老庄]
+core_idea: 有小缺点也能通过改正和努力成为可靠伙伴。
+child_friendly_takeaway: 孩子可以接纳自己的不足，愿意改正并帮助团队。
+values: [接纳自己, 改正缺点, 合作, 幽默]
+visual_motifs: [小猪伙伴, 农庄, 行李, 饭碗, 笑脸]
+usable_story_seeds: [爱吃的小伙伴学会分享点心, 主角用幽默化解团队紧张, 大家给新伙伴一个改正机会]
+avoid_direct_copy: [不要复述成人婚配和捉妖情节, 不要嘲笑体型或贪吃, 不要写低俗玩笑]
+safety_notes: 避免外貌羞辱和成人婚恋桥段，保留幽默与改正。
+integration_prompt: 可借鉴猪八戒加入团队和幽默形象，创作接纳新伙伴故事。
 ---
 
 # 🐷 猪八戒拜师

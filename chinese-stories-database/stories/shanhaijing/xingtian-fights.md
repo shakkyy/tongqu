@@ -9,6 +9,16 @@ word_count: 650
 tags: [刑天, 战斗, 不屈, 勇气]
 themes: [不屈, 勇气, 抗争]
 characters: [刑天, 黄帝]
+culture_type: shanhaijing-myth
+rag_keywords: [刑天, 山海经, 战舞, 盾牌, 勇气, 坚持, 不屈, 鼓点]
+core_idea: 不服输可以变成继续练习的力量，也可以用艺术方式表达情绪。
+child_friendly_takeaway: 孩子遇到挫折时，可以用运动、舞蹈和沟通让自己重新站起来。
+values: [坚持, 勇气, 情绪管理, 和平表达]
+visual_motifs: [盾牌纹样, 鼓点, 红飘带, 舞姿, 山野]
+usable_story_seeds: [孩子把失败后的难过跳成一支舞, 伙伴们用鼓点鼓励主角再试一次, 主角设计勇气盾牌]
+avoid_direct_copy: [不要复述战斗和断首情节, 不要描写血腥暴力, 不要鼓励对抗报复]
+safety_notes: 将战斗转化为表演、运动和情绪表达。
+integration_prompt: 可借鉴刑天不屈和战舞意象，创作儿童挫折复原故事。
 ---
 
 # ⚔️ 刑天舞干戚

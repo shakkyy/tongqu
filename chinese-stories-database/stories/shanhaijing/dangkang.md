@@ -9,6 +9,16 @@ word_count: 500
 tags: [当康, 丰收, 瑞兽]
 themes: [吉祥]
 characters: [当康]
+culture_type: shanhaijing-creature
+rag_keywords: [当康, 丰收, 瑞兽, 吉祥, 中国风纹样, 灯笼, 山水, 温暖家园]
+core_idea: 提炼「当康」中的吉祥，作为儿童故事的精神内核。
+child_friendly_takeaway: 孩子可以从这个文化主题中理解吉祥，并把它用在自己的生活和想象里。
+values: [吉祥]
+visual_motifs: [中国风纹样, 灯笼, 山水, 温暖家园]
+usable_story_seeds: [孩子和伙伴从「当康」的文化意象获得灵感，解决一个温暖的小问题, 围绕中国风纹样设计新的儿童主角和安全冒险, 把传统主题改写成友谊、亲情或合作的小故事]
+avoid_direct_copy: [不要复述《当康》原始情节, 不要照搬原有人物关系和原文表达, 不要把故事写成百科介绍或课堂讲解]
+safety_notes: 保留积极寓意，弱化恐怖、死亡、惩罚、成人婚恋和暴力冲突，改写为儿童友好的表达。
+integration_prompt: 可借鉴「当康」的核心思想、儿童友好寓意和视觉意象，围绕用户输入重新创作，避免复述原故事。
 ---
 
 # 🐗 当康

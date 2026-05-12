@@ -9,6 +9,16 @@ word_count: 680
 tags: [愚公, 移山, 坚持, 毅力]
 themes: [坚持, 毅力, 信念]
 characters: [愚公, 智叟, 天帝]
+culture_type: folktale-perseverance
+rag_keywords: [愚公移山, 大山, 坚持, 搬山, 道路, 家门口, 毅力, 合作]
+core_idea: 长期坚持和共同努力可以改变看似困难的处境。
+child_friendly_takeaway: 大目标可以拆成小步骤，大家一起做就会越来越接近。
+values: [坚持, 合作, 耐心, 解决问题]
+visual_motifs: [大山, 小路, 竹筐, 石子, 朝阳]
+usable_story_seeds: [孩子们一点点清理被石头挡住的小路, 主角把大任务拆成每日小任务, 伙伴们合力修一条去花园的路]
+avoid_direct_copy: [不要复述世代搬山的沉重负担, 不要写成盲目硬扛, 不要忽视安全和休息]
+safety_notes: 强调方法、合作和适度休息，不鼓励儿童做危险重体力劳动。
+integration_prompt: 可借鉴移山寓意和开路意象，生成坚持完成小目标的故事。
 ---
 
 # ⛰️ 愚公移山

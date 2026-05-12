@@ -14,6 +14,16 @@ illustration_prompts:
   - scene1: "夸父在广袤的大地上奔跑，身后扬起尘土"
   - scene2: "夸父俯身喝黄河水，河水飞溅"
   - scene3: "夸父化作一片桃林，桃花盛开"
+culture_type: shanhaijing-myth
+rag_keywords: [夸父追日, 太阳, 奔跑, 追逐, 目标, 桃林, 勇气, 山海经]
+core_idea: 追逐目标需要勇气，也需要认识自己的节奏和边界。
+child_friendly_takeaway: 有梦想很好，但也要会休息、会喝水、会请伙伴帮忙。
+values: [勇气, 自我照顾, 目标感, 量力而行]
+visual_motifs: [太阳, 奔跑巨人, 桃林, 手杖, 金色道路]
+usable_story_seeds: [孩子参加追光跑学会按节奏前进, 主角种下一片给大家乘凉的桃林, 伙伴们把追太阳变成寻找晨光]
+avoid_direct_copy: [不要复述夸父渴死情节, 不要鼓励过度透支身体, 不要写危险追逐]
+safety_notes: 强调健康节奏、补水休息和安全运动。
+integration_prompt: 可借鉴追日、桃林和目标追寻意象，改写为儿童健康逐梦故事。
 ---
 
 # 🏃 夸父追日

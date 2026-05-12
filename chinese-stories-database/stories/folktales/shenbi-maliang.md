@@ -9,6 +9,16 @@ word_count: 1400
 tags: ["马良", "神笔", "惩恶扬善", "智慧", "画画"]
 themes: ["善良与正义", "勇敢", "惩恶扬善"]
 characters: ["马良", "白胡子老人", "县令", "皇帝"]
+culture_type: folktale-wisdom
+rag_keywords: [神笔马良, 画笔, 想象力, 帮助, 善良, 公平, 绘画, 创造]
+core_idea: 创造力应被用来帮助他人，善良比占有神奇力量更重要。
+child_friendly_takeaway: 孩子可以用画画和想象力关心身边的人，让创意变成善意行动。
+values: [善良, 创造力, 公平, 帮助他人]
+visual_motifs: [神奇画笔, 画纸, 村庄, 稻田, 彩色墨水]
+usable_story_seeds: [孩子画出大家需要的小工具, 一支画笔帮助朋友完成心愿, 主角学习把创意用在分享上]
+avoid_direct_copy: [不要照搬马良惩治贪官的情节, 不要描写报复或危险惩罚, 不要把神笔写成满足私欲]
+safety_notes: 冲突应温和处理，突出分享和帮助，避免惩罚性暴力。
+integration_prompt: 可借鉴神笔、绘画成真和善良助人的主题，生成创意解决问题故事。
 ---
 
 # 🖌️ 神笔马良

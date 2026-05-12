@@ -9,6 +9,16 @@ word_count: 1700
 tags: ["八仙过海", "各显神通", "神仙", "法宝", "东海龙宫"]
 themes: ["奇幻冒险", "各显神通", "团结互助"]
 characters: ["八仙", "东海龙王", "花龙太子", "观音菩萨"]
+culture_type: myth-legend
+rag_keywords: [八仙过海, 八仙, 法宝, 过海, 各显神通, 合作, 海浪, 本领]
+core_idea: 每个人都有独特本领，面对困难可以各展所长又互相帮助。
+child_friendly_takeaway: 孩子可以发现自己的小本领，也尊重伙伴不一样的办法。
+values: [合作, 自信, 尊重差异]
+visual_motifs: [海浪, 法宝, 云雾, 小船, 八种光芒]
+usable_story_seeds: [孩子和伙伴用不同工具过一条小溪, 每个角色贡献一个独特办法, 小队合作完成海边任务]
+avoid_direct_copy: [不要复述八仙具体人物斗法情节, 不要描写危险渡海, 不要写神仙炫耀压过他人]
+safety_notes: 过海场景应童话化和安全化，强调合作而非斗法。
+integration_prompt: 可借鉴各显神通和海上法宝意象，转化为儿童团队合作故事。
 ---
 
 # 🌊 八仙过海

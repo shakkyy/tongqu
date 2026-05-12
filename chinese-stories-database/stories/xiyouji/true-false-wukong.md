@@ -9,6 +9,16 @@ word_count: 740
 tags: [孙悟空, 六耳猕猴, 真假, 如来]
 themes: [信任, 真相, 辨别]
 characters: [孙悟空, 六耳猕猴, 唐僧, 如来佛祖]
+culture_type: classic-novel-adaptation
+rag_keywords: [西游记, 真假美猴王, 真假, 自我认识, 诚实, 猴子, 分辨, 镜子]
+core_idea: 认识真正的自己，比模仿别人更重要。
+child_friendly_takeaway: 孩子可以学习诚实表达自己，不靠假装获得认可。
+values: [诚实, 自我认识, 尊重差异]
+visual_motifs: [两只小猴, 镜子, 祥云, 金箍棒纹样, 花果山]
+usable_story_seeds: [孩子遇到一个总爱模仿自己的影子朋友, 小猴学会说出真实想法, 伙伴们用善意分辨真假误会]
+avoid_direct_copy: [不要复述真假猴王争斗情节, 不要描写暴力审判, 不要强化真假对立仇恨]
+safety_notes: 把冲突转为自我认同和诚实沟通，避免打斗。
+integration_prompt: 可借鉴真假美猴王的镜像意象，生成认识自我和诚实表达故事。
 ---
 
 # 🐒 真假美猴王

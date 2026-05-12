@@ -9,6 +9,16 @@ word_count: 580
 tags: [精卫, 填海, 坚持, 勇气]
 themes: [坚持, 勇气, 永不放弃]
 characters: [精卫, 炎帝, 大海]
+culture_type: myth-legend
+rag_keywords: [精卫填海, 精卫鸟, 大海, 石子, 坚持, 愿望, 勇气, 山海]
+core_idea: 小小力量也能因为坚持而有意义，重要的是不放弃心中的愿望。
+child_friendly_takeaway: 孩子可以从每天一点点努力中看见改变，学会坚持但也学会寻求帮助。
+values: [坚持, 勇气, 希望, 互助]
+visual_motifs: [小鸟, 大海, 石子, 树枝, 浪花]
+usable_story_seeds: [小鸟每天搬一颗彩色石子修小路, 孩子和精卫一起完成小目标, 伙伴们把大任务拆成小步骤]
+avoid_direct_copy: [不要复述溺水死亡变鸟情节, 不要强化执念和孤独对抗, 不要描写危险海浪]
+safety_notes: 保留坚持寓意，弱化死亡起因，加入合作和适度休息。
+integration_prompt: 可借鉴精卫鸟、石子和大海意象，创作关于坚持小目标的故事。
 ---
 
 # 🐦 精卫填海

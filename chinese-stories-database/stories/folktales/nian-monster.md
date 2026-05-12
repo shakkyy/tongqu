@@ -10,6 +10,16 @@ tags: [春节, 年兽, 鞭炮, 红色]
 themes: [智慧, 勇敢]
 characters: [年兽, 老人]
 festival: 春节
+culture_type: festival-folktale
+rag_keywords: [年兽, 春节, 过年, 红色, 爆竹, 灯笼, 团圆, 勇敢]
+core_idea: 用团结、智慧和喜庆习俗驱散害怕，迎接新年的希望。
+child_friendly_takeaway: 害怕时可以和家人朋友一起想办法，用勇气和热闹带来安心。
+values: [勇敢, 团结, 希望, 家庭团圆]
+visual_motifs: [红灯笼, 春联, 鞭炮, 年夜饭, 雪夜村庄]
+usable_story_seeds: [孩子和伙伴布置红灯笼迎新年, 用鼓声和笑声赶走心里的害怕, 全家一起准备团圆饭]
+avoid_direct_copy: [不要复述年兽恐吓村庄的惊吓细节, 不要描写危险爆竹操作, 不要把怪物写得恐怖]
+safety_notes: 怪物应可爱化或象征化，爆竹改为安全的鼓声、灯光或电子烟花。
+integration_prompt: 可借鉴春节红色、灯笼和团圆习俗，写成儿童勇敢迎新故事。
 ---
 
 # 🐉 年兽的故事

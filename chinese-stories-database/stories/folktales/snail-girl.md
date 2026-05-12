@@ -9,6 +9,16 @@ word_count: 650
 tags: [田螺姑娘, 报恩, 勤劳]
 themes: [善良, 勤劳, 报恩]
 characters: [谢端, 田螺姑娘]
+culture_type: folktale-kindness
+rag_keywords: [田螺姑娘, 田螺, 报恩, 勤劳, 善良, 家务, 互助, 小河]
+core_idea: 善良和勤劳会带来温暖回响，但帮助应建立在尊重和感恩上。
+child_friendly_takeaway: 孩子可以学习主动帮忙，也要记得感谢别人对自己的帮助。
+values: [善良, 感恩, 勤劳, 互助]
+visual_motifs: [田螺, 小河, 厨房炊烟, 竹篮, 水田]
+usable_story_seeds: [孩子照顾小田螺后收到一份温暖惊喜, 伙伴们一起整理小院子, 田螺壳里藏着互助小任务]
+avoid_direct_copy: [不要复述神秘女子做家务的成人婚配情节, 不要强化性别化家务分工, 不要写偷窥或跟踪]
+safety_notes: 改写为朋友互助与感谢，避免成人婚恋和隐私侵犯桥段。
+integration_prompt: 可借鉴田螺、报恩和勤劳意象，转化为儿童互助故事。
 ---
 
 # 🐚 田螺姑娘

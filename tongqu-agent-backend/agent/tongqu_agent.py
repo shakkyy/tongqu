@@ -9,7 +9,7 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 from agent.tools import (
     CharacterScriptEntry,
@@ -20,10 +20,12 @@ from agent.tools import (
 from config import CONFIG
 from core.clients import ApiKeyError
 from core.models import CreationSource, Scene
+from services.culture_rag import CultureHit, CultureRagService
 from services.sketch_service import SketchUnderstandingService
 from services.story_pipeline import StorybookPipeline
 
 MAX_REACT_TURNS = 8
+ProgressReporter = Callable[[dict[str, Any]], Awaitable[None]]
 
 _REACT_SYSTEM_PROMPT = """你是「童趣绘梦」的儿童绘本主理人，负责把用户素材变成可配图、可朗读的分镜内容。
 
@@ -31,10 +33,11 @@ _REACT_SYSTEM_PROMPT = """你是「童趣绘梦」的儿童绘本主理人，负
 
 **标准作业流程（SOP）——须严格遵守：**
 1. 若工作区标明「用户带有草图图片」，必须先调用 `analyze_sketch` 获取画面语义；若无草图，可跳过此步。
-2. 调用 `draft_story`：结合工作区中的「用于写故事的核心素材 safe_keywords」与（若有）视觉语义，生成标题、大纲、人物脚本、价值观与完整故事正文（150–250 字）。
-3. 调用 `review_safety`：对故事正文做自我审查（BERT 位点）。若结果不安全或高风险，**不要**继续分镜，应再次调用 `draft_story` 改写后再调用 `review_safety`。
-4. 仅在审查通过后，调用 `generate_storyboard`：将故事切分为 3～4 个分镜，每镜含中文旁白与**纯英文** image_prompt，并保持角色视觉锚点一致。
-5. 当你确认分镜合理且已通过安全审查时，调用 `finish_creation` 传入 `title`、`story_body_zh` 与 `scenes` 列表以**结束**整个创作流程。
+2. 调用 `retrieve_culture`：基于 safe_keywords、sketch_text 与（若有）visual_semantics 检索文化语料，取得 culture_context。
+3. 调用 `draft_story`：结合工作区中的「用于写故事的核心素材 safe_keywords」、（若有）视觉语义与 culture_context，生成标题、大纲、人物脚本、价值观与完整故事正文（150–250 字）。
+4. 调用 `review_safety`：对故事正文做自我审查（BERT 位点）。若结果不安全或高风险，**不要**继续分镜，应再次调用 `draft_story` 改写后再调用 `review_safety`。
+5. 仅在审查通过后，调用 `generate_storyboard`：将故事切分为 3～4 个分镜，每镜含中文旁白与**纯英文** image_prompt，并保持角色视觉锚点一致。
+6. 当你确认分镜合理且已通过安全审查时，调用 `finish_creation` 传入 `title`、`story_body_zh` 与 `scenes` 列表以**结束**整个创作流程。
 
 **重要约束：**
 - 面向 3～10 岁儿童，积极正向；不得输出违法、暴力、色情、恐怖或歧视内容。
@@ -66,7 +69,7 @@ def _build_react_tools() -> list[dict[str, Any]]:
             "type": "function",
             "function": {
                 "name": "draft_story",
-                "description": "根据安全过滤后的关键词与（可选）草图视觉语义，生成完整故事策划 JSON（含 title_zh、outline_zh、character_script、positive_values、story_body_zh）。",
+                "description": "根据安全过滤后的关键词、（可选）草图视觉语义与文化 RAG 上下文，生成完整故事策划 JSON（含 title_zh、outline_zh、character_script、positive_values、story_body_zh）。",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -78,12 +81,39 @@ def _build_react_tools() -> list[dict[str, Any]]:
                             "type": ["string", "null"],
                             "description": "来自 analyze_sketch；无草图时为 null。",
                         },
+                        "culture_context": {
+                            "type": ["string", "null"],
+                            "description": "来自 retrieve_culture；无命中时为 null。",
+                        },
                         "style": {
                             "type": "string",
                             "description": "与工作区 style_slug 一致，如 ink-wash。",
                         },
                     },
                     "required": ["core_keywords", "style"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "retrieve_culture",
+                "description": "基于安全素材和草图语义检索中国传统文化 frontmatter RAG 字段，返回可注入故事策划的短上下文。",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "由 safe_keywords、sketch_text、visual_semantics 组合而成的检索查询。",
+                        },
+                        "top_k": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 5,
+                            "description": "返回条数，默认 3。",
+                        },
+                    },
+                    "required": ["query"],
                 },
             },
         },
@@ -201,9 +231,11 @@ class TongquAgent:
         self,
         story_pipeline: StorybookPipeline,
         sketch_service: SketchUnderstandingService,
+        culture_rag_service: CultureRagService | None = None,
     ) -> None:
         self._story = story_pipeline
         self._sketch = sketch_service
+        self._culture = culture_rag_service or CultureRagService()
         self._tool_handlers = TongquToolHandlers(sketch_service, story_pipeline)
         self._tools_schema = _build_react_tools()
         self._ctx_original_keywords: str = ""
@@ -214,9 +246,12 @@ class TongquAgent:
         self._ctx_style: str = ""
         self._ctx_visual_semantics: str | None = None
         self._ctx_vl_used: bool = False
+        self._ctx_culture_hits: list[CultureHit] = []
+        self._ctx_culture_context: str = ""
+        self._ctx_culture_integration_note: str = ""
 
-    @staticmethod
     def _merge_agent_fields(
+        self,
         base: Dict[str, Any],
         *,
         creation_source: str,
@@ -227,6 +262,10 @@ class TongquAgent:
         out["creation_source"] = creation_source
         out["sketch_vl_used"] = sketch_vl_used
         out["sketch_understanding"] = sketch_understanding
+        out["culture_rag_used"] = bool(self._ctx_culture_hits)
+        out["culture_hits"] = [hit.to_public_dict() for hit in self._ctx_culture_hits]
+        out["culture_context"] = self._ctx_culture_context[:1200]
+        out["culture_integration_note"] = self._ctx_culture_integration_note
         return out
 
     def _baseline_material_for_filter(self, keywords: str, sketch_text: str | None) -> str:
@@ -272,6 +311,26 @@ class TongquAgent:
             material = safe_keywords
         return enhancer_enabled, enhancement, material
 
+    def _culture_payload(self) -> dict[str, Any]:
+        return {
+            "used": bool(self._ctx_culture_hits),
+            "hits": [hit.to_api_dict() for hit in self._ctx_culture_hits],
+            "culture_context": self._ctx_culture_context,
+            "culture_integration_note": self._ctx_culture_integration_note,
+        }
+
+    def _retrieve_culture_for_query(self, query: str, top_k: int | None = None) -> dict[str, Any]:
+        hits = self._culture.retrieve(
+            query,
+            top_k=top_k or CONFIG.CULTURE_RAG_TOP_K,
+        )
+        self._ctx_culture_hits = hits
+        self._ctx_culture_context = self._culture.build_culture_context(hits)
+        self._ctx_culture_integration_note = self._culture.integration_note(hits)
+        titles = ", ".join(f"{hit.title}({hit.score:.2f})" for hit in hits) or "none"
+        print(f"[culture_rag] query={query[:80]!r} hits={titles}", flush=True)
+        return self._culture_payload()
+
     async def _tool_analyze_sketch(self, args: dict[str, Any]) -> dict[str, Any]:
         has = bool(args.get("has_sketch_image"))
         img = (self._ctx_sketch_image or "").strip()
@@ -290,11 +349,38 @@ class TongquAgent:
         )
         self._ctx_vl_used = ctx.vl_used
         self._ctx_visual_semantics = ctx.vl_understanding
+        if ctx.vl_understanding:
+            query = "\n".join(
+                part
+                for part in [
+                    self._ctx_safe_keywords,
+                    self._ctx_sketch_text or "",
+                    ctx.vl_understanding,
+                ]
+                if part
+            )
+            self._retrieve_culture_for_query(query)
         return {
             "visual_semantics": ctx.vl_understanding,
             "vl_used": ctx.vl_used,
+            "culture_rag": self._culture_payload(),
             "message": "草图语义已生成，请在 draft_story 中传入 visual_semantics 与 core_keywords（工作区 safe_keywords）。",
         }
+
+    async def _tool_retrieve_culture(self, args: dict[str, Any]) -> dict[str, Any]:
+        query = (args.get("query") or "").strip()
+        if not query:
+            query = "\n".join(
+                part
+                for part in [
+                    self._ctx_safe_keywords,
+                    self._ctx_sketch_text or "",
+                    self._ctx_visual_semantics or "",
+                ]
+                if part
+            )
+        top_k = int(args.get("top_k") or CONFIG.CULTURE_RAG_TOP_K)
+        return self._retrieve_culture_for_query(query, top_k=top_k)
 
     async def _tool_draft_story(self, args: dict[str, Any]) -> dict[str, Any]:
         core = (args.get("core_keywords") or self._ctx_material_for_llm or "").strip()
@@ -304,9 +390,13 @@ class TongquAgent:
         vs = args.get("visual_semantics")
         if isinstance(vs, str) and not vs.strip():
             vs = None
+        culture_context = args.get("culture_context")
+        if isinstance(culture_context, str) and not culture_context.strip():
+            culture_context = None
         plan_args = StoryPlanningArgs(
             core_keywords=core,
             visual_semantics=vs,
+            culture_context=culture_context or self._ctx_culture_context or None,
             style=style,
         )
         result = await self._tool_handlers.story_planning_tool(plan_args)
@@ -388,6 +478,8 @@ class TongquAgent:
         try:
             if name == "analyze_sketch":
                 payload = await self._tool_analyze_sketch(args)
+            elif name == "retrieve_culture":
+                payload = await self._tool_retrieve_culture(args)
             elif name == "draft_story":
                 payload = await self._tool_draft_story(args)
             elif name == "review_safety":
@@ -411,6 +503,21 @@ class TongquAgent:
 
         return json.dumps(payload, ensure_ascii=False), None
 
+    async def _emit_progress(
+        self,
+        reporter: ProgressReporter | None,
+        stage_id: str,
+        title: str,
+        detail: str,
+        **meta: Any,
+    ) -> None:
+        if reporter is None:
+            return
+        stage: dict[str, Any] = {"id": stage_id, "title": title, "detail": detail}
+        if meta:
+            stage["meta"] = meta
+        await reporter(stage)
+
     async def run(
         self,
         *,
@@ -420,6 +527,7 @@ class TongquAgent:
         sketch_text: str | None = None,
         creation_source: CreationSource | str | None = None,
         enable_style_keyword_enhancer: bool | None = None,
+        on_progress: ProgressReporter | None = None,
     ) -> Dict[str, Any]:
         src = (
             creation_source
@@ -452,6 +560,12 @@ class TongquAgent:
                 sketch_understanding=None,
             )
 
+        await self._emit_progress(
+            on_progress,
+            "orchestrate",
+            "中枢 Agent 编排",
+            "正在进行素材整理与安全预处理",
+        )
         baseline = self._baseline_material_for_filter(keywords, sketch_text)
         filtered = await self._story.safety_middleware.filter_input(baseline)
         safe_keywords = filtered["sanitized_keywords"]
@@ -470,11 +584,23 @@ class TongquAgent:
         self._ctx_style = style
         self._ctx_visual_semantics = None
         self._ctx_vl_used = False
+        self._ctx_culture_hits = []
+        self._ctx_culture_context = ""
+        self._ctx_culture_integration_note = ""
+
+        culture_query = "\n".join(
+            part
+            for part in [safe_keywords, (sketch_text or "").strip()]
+            if part
+        )
+        self._retrieve_culture_for_query(culture_query)
 
         workspace = {
             "style_slug": style,
             "safe_keywords": material_for_llm,
             "raw_safe_keywords_after_input_filter": safe_keywords,
+            "culture_context": self._ctx_culture_context,
+            "culture_hits": [hit.to_api_dict() for hit in self._ctx_culture_hits],
             "original_keywords": (keywords or "").strip(),
             "sketch_text": (sketch_text or "").strip(),
             "has_sketch_image": bool((sketch_image_base64 or "").strip()),
@@ -513,7 +639,7 @@ class TongquAgent:
                     messages.append(
                         {
                             "role": "user",
-                            "content": "请使用工具继续：若有草图请先 analyze_sketch，再 draft_story → review_safety → generate_storyboard → finish_creation。",
+                            "content": "请使用工具继续：若有草图请先 analyze_sketch，然后 retrieve_culture，再 draft_story → review_safety → generate_storyboard → finish_creation。",
                         }
                     )
                     continue
@@ -522,6 +648,49 @@ class TongquAgent:
 
                 for tc in msg.tool_calls:
                     name = tc.function.name
+                    if name == "analyze_sketch":
+                        await self._emit_progress(
+                            on_progress,
+                            "sketch",
+                            "解析草图灵感",
+                            "正在理解草图中的角色与场景语义",
+                        )
+                    elif name == "retrieve_culture":
+                        await self._emit_progress(
+                            on_progress,
+                            "culture",
+                            "检索文化语料",
+                            "正在从传统文化 frontmatter 中提取可改写灵感",
+                        )
+                    elif name == "draft_story":
+                        await self._emit_progress(
+                            on_progress,
+                            "draft",
+                            "撰写故事正文",
+                            "正在构思标题、正文与角色设定",
+                        )
+                    elif name == "review_safety":
+                        await self._emit_progress(
+                            on_progress,
+                            "orchestrate",
+                            "中枢 Agent 编排",
+                            "正在执行故事文本安全初审",
+                            phase="story_draft_review",
+                        )
+                    elif name == "generate_storyboard":
+                        await self._emit_progress(
+                            on_progress,
+                            "board",
+                            "生成分镜脚本",
+                            "正在拆分故事并生成每页画面提示词",
+                        )
+                    elif name == "finish_creation":
+                        await self._emit_progress(
+                            on_progress,
+                            "orchestrate",
+                            "中枢 Agent 编排",
+                            "分镜确认完成，准备进入插图与语音制作",
+                        )
                     raw_args = tc.function.arguments or "{}"
                     body, fin = await self._dispatch_tool(name, raw_args)
                     messages.append(
@@ -620,6 +789,7 @@ class TongquAgent:
             input_hits=filtered["hits"],
             enhancement=enhancement,
             enhancer_enabled=enhancer_enabled,
+            on_progress=on_progress,
         )
 
         return self._merge_agent_fields(

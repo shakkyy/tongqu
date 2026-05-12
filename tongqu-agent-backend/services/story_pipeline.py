@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import Any, Dict, List, Sequence
+from typing import Any, Awaitable, Callable, Dict, List, Sequence
 
 from config import CONFIG
 from core.clients import ApiKeyError
@@ -23,6 +23,8 @@ from core.models import (
 )
 from core.safety import SafetyMiddleware
 from services.style_keyword_enhancer import StyleKeywordEnhancer
+
+ProgressReporter = Callable[[dict[str, Any]], Awaitable[None]]
 
 
 class StorybookPipeline:
@@ -52,8 +54,15 @@ class StorybookPipeline:
         style: str,
         *,
         enable_style_keyword_enhancer: bool | None = None,
+        on_progress: ProgressReporter | None = None,
     ) -> Dict[str, Any]:
         try:
+            await self._emit_progress(
+                on_progress,
+                "orchestrate",
+                "中枢 Agent 编排",
+                "正在进行输入安全过滤与任务编排",
+            )
             filtered = await self.safety_middleware.filter_input(story_keywords)
             safe_keywords = filtered["sanitized_keywords"]
             normalized_style = self._normalize_style(style)
@@ -87,14 +96,52 @@ class StorybookPipeline:
                 style=normalized_style,
             )
 
+            await self._emit_progress(
+                on_progress,
+                "draft",
+                "撰写故事正文",
+                "正在生成故事标题、正文与分镜草案",
+            )
             raw_story = await self.llm_client.generate(prompt)
             safe_story = await self._ensure_safe_text(raw_story)
             title, story_text, scenes = self._parse_story_and_scenes(safe_story)
-            image_urls, audio_urls = await asyncio.gather(
-                self._generate_images_with_retry(scenes=scenes, style=normalized_style),
-                self._synthesize_all_scenes(scenes=scenes, voice="亲切姐姐"),
+            await self._emit_progress(
+                on_progress,
+                "board",
+                "生成分镜脚本",
+                f"已完成故事草稿，准备生成 {len(scenes)} 个场景",
+            )
+            await self._emit_progress(
+                on_progress,
+                "image",
+                "绘制插画场景",
+                f"开始为 {len(scenes)} 个分镜生成配图",
+                total=len(scenes),
+            )
+            image_urls = await self._generate_images_with_retry(
+                scenes=scenes,
+                style=normalized_style,
+                on_progress=on_progress,
+            )
+            await self._emit_progress(
+                on_progress,
+                "tts",
+                "合成朗读音频",
+                f"开始为 {len(scenes)} 页旁白合成音频",
+                total=len(scenes),
+            )
+            audio_urls = await self._synthesize_all_scenes(
+                scenes=scenes,
+                voice="亲切姐姐",
+                on_progress=on_progress,
             )
 
+            await self._emit_progress(
+                on_progress,
+                "review",
+                "安全审阅与润色",
+                "正在执行图文安全复核与价值观对齐",
+            )
             title, story_text, scenes = await self._final_safety_review(
                 title=title,
                 story_text=story_text,
@@ -167,6 +214,7 @@ class StorybookPipeline:
         input_hits: List[str],
         enhancement: Dict[str, Any],
         enhancer_enabled: bool,
+        on_progress: ProgressReporter | None = None,
     ) -> Dict[str, Any]:
         """
         ReAct / 沙盒主链完成后：配图 + TTS + 终审；并回传与 run() 一致的风格关键词增强元数据
@@ -212,11 +260,37 @@ class StorybookPipeline:
             except json.JSONDecodeError:
                 pass
 
-            image_urls, audio_urls = await asyncio.gather(
-                self._generate_images_with_retry(scenes=scenes, style=normalized_style),
-                self._synthesize_all_scenes(scenes=scenes, voice="亲切姐姐"),
+            await self._emit_progress(
+                on_progress,
+                "image",
+                "绘制插画场景",
+                f"开始为 {len(scenes)} 个分镜生成配图",
+                total=len(scenes),
+            )
+            image_urls = await self._generate_images_with_retry(
+                scenes=scenes,
+                style=normalized_style,
+                on_progress=on_progress,
+            )
+            await self._emit_progress(
+                on_progress,
+                "tts",
+                "合成朗读音频",
+                f"开始为 {len(scenes)} 页旁白合成音频",
+                total=len(scenes),
+            )
+            audio_urls = await self._synthesize_all_scenes(
+                scenes=scenes,
+                voice="亲切姐姐",
+                on_progress=on_progress,
             )
 
+            await self._emit_progress(
+                on_progress,
+                "review",
+                "安全审阅与润色",
+                "正在执行图文安全复核与价值观对齐",
+            )
             title, story_text, scenes = await self._final_safety_review(
                 title=title,
                 story_text=story_text,
@@ -312,6 +386,7 @@ class StorybookPipeline:
         - 剪纸 (Paper cutting): "Chinese paper cutting art, layered flat paper, intricate cutout patterns, red and gold color palette", 避免 "realistic perspective, oil painting".
         - 皮影 (Shadow play): "Chinese shadow puppetry, silhouette against an illuminated screen, theatrical lighting, jointed flat figures", 避免 "realistic portraits, daylight".
         - 漫画 (Comic): "vibrant comic book style, clear line art, flat colors, expressive features", 避免 "ink wash, photorealism".
+     f. **禁止画面文字**：每条 image_prompt 必须包含 "no text, no letters, no watermark, no logo"，避免画面出现英文标题、标牌字和水印。
 
 输入素材与风格强化信息：{keywords}
 """.strip()
@@ -358,7 +433,13 @@ class StorybookPipeline:
             )
         return title, story_text, scenes
 
-    async def _generate_images_with_retry(self, scenes: Sequence[Scene], style: str) -> List[str]:
+    async def _generate_images_with_retry(
+        self,
+        scenes: Sequence[Scene],
+        style: str,
+        *,
+        on_progress: ProgressReporter | None = None,
+    ) -> List[str]:
         async def _task(scene: Scene) -> str:
             last_error: Exception | None = None
             for attempt in range(MAX_IMAGE_RETRY + 1):
@@ -380,16 +461,53 @@ class StorybookPipeline:
         for idx, scene in enumerate(scenes):
             if idx > 0:
                 await asyncio.sleep(0.9)
+            await self._emit_progress(
+                on_progress,
+                "image",
+                "绘制插画场景",
+                f"插图生成中（{idx + 1}/{len(scenes)}）",
+                current=idx + 1,
+                total=len(scenes),
+            )
             urls.append(await _task(scene))
         return urls
 
-    async def _synthesize_all_scenes(self, scenes: Sequence[Scene], voice: str) -> List[str]:
+    async def _synthesize_all_scenes(
+        self,
+        scenes: Sequence[Scene],
+        voice: str,
+        *,
+        on_progress: ProgressReporter | None = None,
+    ) -> List[str]:
         urls: List[str] = []
         for idx, scene in enumerate(scenes):
             if idx > 0:
                 await asyncio.sleep(0.45)
+            await self._emit_progress(
+                on_progress,
+                "tts",
+                "合成朗读音频",
+                f"语音合成中（{idx + 1}/{len(scenes)}）",
+                current=idx + 1,
+                total=len(scenes),
+            )
             urls.append(await self.tts_client.synthesize(scene.text, voice))
         return urls
+
+    async def _emit_progress(
+        self,
+        reporter: ProgressReporter | None,
+        stage_id: str,
+        title: str,
+        detail: str,
+        **meta: Any,
+    ) -> None:
+        if reporter is None:
+            return
+        stage: dict[str, Any] = {"id": stage_id, "title": title, "detail": detail}
+        if meta:
+            stage["meta"] = meta
+        await reporter(stage)
 
     async def _final_safety_review(
         self,

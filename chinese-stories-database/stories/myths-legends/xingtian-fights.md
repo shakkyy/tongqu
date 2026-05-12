@@ -9,6 +9,16 @@ word_count: 650
 tags: [刑天, 战斗, 不屈, 勇气]
 themes: [不屈, 勇气, 抗争]
 characters: [刑天, 黄帝]
+culture_type: myth-legend
+rag_keywords: [刑天舞干戚, 刑天, 勇气, 不服输, 战鼓, 坚持, 神话, 舞动]
+core_idea: 面对挫折仍保持勇气，但真正的勇敢也需要学会和平表达。
+child_friendly_takeaway: 孩子可以把不服输变成练习、舞蹈或运动中的坚持。
+values: [勇气, 坚持, 情绪表达, 和平解决]
+visual_motifs: [战鼓, 盾牌纹样, 舞姿, 山野, 红色飘带]
+usable_story_seeds: [孩子把生气变成一支勇敢舞, 主角练习跌倒后再站起来, 伙伴们用鼓点完成团队表演]
+avoid_direct_copy: [不要复述战斗和断首情节, 不要描写暴力对抗, 不要鼓励报复]
+safety_notes: 将战斗意象转为舞蹈、运动或情绪管理，避免血腥暴力。
+integration_prompt: 可借鉴刑天不屈和战鼓舞动意象，改写为儿童坚持与情绪表达故事。
 ---
 
 # ⚔️ 刑天舞干戚

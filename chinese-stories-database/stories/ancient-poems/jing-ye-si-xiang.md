@@ -4,6 +4,7 @@ title: 静夜思乡
 poem: 静夜思
 poet: 李白
 dynasty: 唐
+source: 唐诗《静夜思》
 original_text: |
   床前明月光，
   疑是地上霜。
@@ -16,6 +17,16 @@ word_count: 580
 tags: [李白, 思乡, 月亮, 夜晚]
 themes: [亲情, 思念]
 characters: [李白, 母亲]
+culture_type: ancient-poem
+rag_keywords: [静夜思, 月亮, 思乡, 想家, 床前月光, 团圆, 家人, 夜晚]
+core_idea: 月光承载想家与亲情，远方的思念可以被温柔表达。
+child_friendly_takeaway: 想家的时候可以把思念说出来，也可以用月亮和祝福连接亲人朋友。
+values: [亲情, 温柔表达, 珍惜陪伴]
+visual_motifs: [月光, 窗前, 小床, 远山, 家灯]
+usable_story_seeds: [孩子在月光下给家人画一封信, 小伙伴把想家变成月亮邮票, 主角用一盏小灯找到安心的感觉]
+avoid_direct_copy: [不要逐句改写静夜思, 不要照搬李白床前望月情节, 不要写成古诗讲解]
+safety_notes: 避免放大孤独感，重点转为陪伴、沟通和温暖安慰。
+integration_prompt: 可借鉴月光、夜晚和思乡主题，围绕用户输入重新创作温柔的想家故事。
 ---
 
 # 🌙 静夜思乡

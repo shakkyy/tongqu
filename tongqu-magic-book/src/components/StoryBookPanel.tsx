@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import type { StoryPage } from "../types";
+import type { CultureRagInfo, StoryPage } from "../types";
 import { exportStoryAsHtmlFile, resolveBookTitle, shareStory } from "../lib/shareAndExport";
 import {
   BookOpen,
@@ -22,6 +22,14 @@ interface StoryBookPanelProps {
   /** 草图生成中：只显示加载，不展示上一本书的缩略图 */
   forceLoadingOnly?: boolean;
   progressText: string;
+  generationStages?: Array<{
+    id: string;
+    title: string;
+    detail: string;
+  }>;
+  generationStageIndex?: number;
+  generationElapsedSec?: number;
+  culture?: CultureRagInfo | null;
   onSpeakPage: (index: number) => void;
   /** 当前为已生成绘本时显示，手动加入书架 */
   onAddToBookshelf?: () => void;
@@ -34,6 +42,10 @@ export function StoryBookPanel({
   isGenerating,
   forceLoadingOnly,
   progressText,
+  generationStages = [],
+  generationStageIndex = 0,
+  generationElapsedSec = 0,
+  culture,
   onSpeakPage,
   onAddToBookshelf,
 }: StoryBookPanelProps) {
@@ -41,6 +53,19 @@ export function StoryBookPanel({
   const showSpinner = isGenerating || forceLoadingOnly;
   const [actionHint, setActionHint] = useState<string | null>(null);
   const [shareExportBusy, setShareExportBusy] = useState<"share" | "export" | null>(null);
+  const [cultureOpen, setCultureOpen] = useState(false);
+  const currentStage = generationStages[Math.min(generationStageIndex, Math.max(generationStages.length - 1, 0))];
+  const stageCount = Math.max(1, generationStages.length);
+
+  const formatElapsed = (seconds: number) => {
+    const mm = Math.floor(seconds / 60)
+      .toString()
+      .padStart(2, "0");
+    const ss = Math.max(0, seconds % 60)
+      .toString()
+      .padStart(2, "0");
+    return `${mm}:${ss}`;
+  };
 
   useEffect(() => {
     if (!actionHint) return;
@@ -53,7 +78,7 @@ export function StoryBookPanel({
     const bookTitle = resolveBookTitle(storyPages);
     setShareExportBusy("share");
     try {
-      const r = await shareStory(storyPages, bookTitle);
+      const r = await shareStory(storyPages, bookTitle, culture ?? undefined);
       if (r.message) setActionHint(r.message);
     } catch {
       setActionHint("分享失败，请重试");
@@ -67,7 +92,7 @@ export function StoryBookPanel({
     const bookTitle = resolveBookTitle(storyPages);
     setShareExportBusy("export");
     try {
-      exportStoryAsHtmlFile(storyPages, bookTitle);
+      exportStoryAsHtmlFile(storyPages, bookTitle, culture ?? undefined);
       setActionHint("已下载 HTML 文件，可用浏览器打开，或通过「打印」另存为 PDF");
     } catch {
       setActionHint("导出失败，请重试");
@@ -212,41 +237,159 @@ export function StoryBookPanel({
             </div>
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center gap-4 p-6">
-            <div className="w-16 h-16 rounded-full bg-cn-yellow/20 flex items-center justify-center border-2 border-dashed border-cn-yellow animate-spin">
-              <Wand2 className="w-8 h-8 text-cn-yellow animate-pulse" />
+          <div className="w-full h-full max-w-2xl px-4 md:px-6 py-3 flex items-center">
+            <div className="w-full max-h-[90%] rounded-2xl border-2 border-cn-ink bg-[#FCF8EE] bg-paper-texture overflow-hidden font-sans flex flex-col min-h-0">
+              <div className="px-4 py-3 border-b-2 border-cn-ink/25 bg-[#FDF9F0]/95 flex-shrink-0">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-12 h-12 rounded-full bg-[#F3E7CF] border-2 border-dashed border-[#6B4D2E] flex items-center justify-center rotate-[-2deg]">
+                      <Wand2 className="w-6 h-6 text-[#6B4D2E] animate-pulse" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-extrabold text-cn-ink tracking-wide truncate">魔法工坊制作中</p>
+                      <p className="text-xs font-semibold text-cn-ink/70 truncate">
+                        {currentStage?.detail || progressText || "正在生成绘本，请稍候..."}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p className="text-[10px] font-bold text-cn-ink/60">已用时</p>
+                    <p className="text-sm font-extrabold text-cn-ink tabular-nums">{formatElapsed(generationElapsedSec)}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-3 md:p-4 flex-1 min-h-0">
+                {generationStages.length > 0 ? (
+                  <div
+                    className="grid h-full min-h-0 gap-1.5"
+                    style={{ gridTemplateRows: `repeat(${stageCount}, minmax(0, 1fr))` }}
+                  >
+                    {generationStages.map((stage, idx) => {
+                      const done = idx < generationStageIndex;
+                      const active = idx === generationStageIndex;
+                      return (
+                        <div
+                          key={stage.id}
+                          className={`flex items-center gap-2.5 rounded-xl px-2.5 py-1.5 transition-colors min-h-0 ${
+                            active
+                              ? "border-2 border-[#A56E3F] bg-[#FFFDF6] opacity-90"
+                              : done
+                                ? "border-2 border-[#6B705C] bg-[rgba(107,112,92,0.06)]"
+                                : "border-2 border-dashed border-[#D1D5DB] bg-transparent"
+                          }`}
+                          style={active ? { animation: "stageBreath 2.6s ease-in-out infinite" } : undefined}
+                        >
+                          <div
+                            className={`w-5 h-5 rounded-full border-2 border-dashed flex items-center justify-center text-[10px] font-extrabold bg-paper-texture flex-shrink-0 ${
+                              active
+                                ? "border-[#A56E3F] text-[#7C4E2B] bg-[#F9EEDB]"
+                                : done
+                                  ? "border-[#6B705C] text-[#3F4638] bg-[rgba(107,112,92,0.12)]"
+                                  : "border-cn-ink/35 text-cn-ink/45 bg-cn-paper/70"
+                            }`}
+                            style={{ transform: idx % 2 === 0 ? "rotate(-2deg)" : "rotate(2deg)" }}
+                          >
+                            {done ? "✓" : idx + 1}
+                          </div>
+                          <div className="min-w-0">
+                            <p
+                              className={`text-[12.5px] font-semibold tracking-[0.01em] leading-snug ${
+                                active ? "text-[#6B4429]" : done ? "text-[#3F4638]" : "text-cn-ink/65"
+                              }`}
+                            >
+                              {stage.title}
+                            </p>
+                            <p
+                              className={`text-[11px] font-medium leading-snug mt-0.5 line-clamp-2 ${
+                                active ? "text-[#6B4429]/80" : done ? "text-[#3F4638]/80" : "text-cn-ink/50"
+                              }`}
+                            >
+                              {stage.detail}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-sm font-semibold text-cn-ink/75 text-center py-2">{progressText}</p>
+                )}
+              </div>
             </div>
-            <p className="text-xl font-classical font-bold text-cn-ink tracking-widest text-center">{progressText}</p>
+            <style>{`
+              @keyframes stageBreath {
+                0%, 100% { opacity: 0.8; }
+                50% { opacity: 1; }
+              }
+            `}</style>
           </div>
         )}
       </div>
 
-      <div className="h-20 flex items-center gap-3 overflow-x-auto pb-1 px-1 hide-scrollbar flex-shrink-0">
-        {!showSpinner &&
-          storyPages.map((page, idx) => (
+      {!showSpinner && (
+        <div className="flex flex-col gap-2 flex-shrink-0">
+          {culture?.used && culture.hits.length > 0 ? (
+            <div className="rounded-xl border-2 border-dashed border-[#A56E3F] bg-[#FFF8E8] px-3 py-2">
+              <button
+                type="button"
+                onClick={() => setCultureOpen((v) => !v)}
+                className="w-full flex items-start justify-between gap-3 text-left"
+                aria-expanded={cultureOpen}
+              >
+                <div className="min-w-0">
+                  <p className="text-[11px] font-black text-[#7C4E2B] tracking-wide">文化发掘</p>
+                  <p className="text-[11px] font-bold text-cn-ink/80 truncate">
+                    已检索 {culture.hits.length} 条语料，点击{cultureOpen ? "收起" : "查看"}：{culture.hits.map((h) => h.title).join("、")}
+                  </p>
+                </div>
+                <span className="text-[10px] font-bold rounded-full border border-[#A56E3F] px-2 py-0.5 text-[#7C4E2B] bg-white/70 flex-shrink-0">
+                  {cultureOpen ? "收起" : "查看"}
+                </span>
+              </button>
+              {cultureOpen ? (
+                <>
+                  <div className="mt-2 grid gap-1 md:grid-cols-2">
+                    {culture.hits.slice(0, 2).map((hit) => (
+                      <div key={`${hit.title}-${hit.score ?? ""}`} className="text-[10px] leading-snug text-cn-ink/75">
+                        <span className="font-bold text-cn-ink">{hit.title}</span>
+                        {hit.score !== undefined ? <span className="text-cn-ink/45"> · {hit.score}</span> : null}
+                        {hit.core_idea ? <span>：{hit.core_idea}</span> : null}
+                      </div>
+                    ))}
+                  </div>
+                  {culture.integrationNote ? (
+                    <p className="mt-1 text-[10px] leading-snug text-cn-ink/60 line-clamp-2">{culture.integrationNote}</p>
+                  ) : null}
+                </>
+              ) : null}
+            </div>
+          ) : null}
+          <div className="h-20 flex items-center gap-3 overflow-x-auto pb-1 px-1 hide-scrollbar">
+            {storyPages.map((page, idx) => (
+              <button
+                key={page.id}
+                type="button"
+                onClick={() => setActiveIndex(idx)}
+                className={`relative flex-shrink-0 h-14 aspect-[4/3] border-2 rounded-lg overflow-hidden transition-all ${
+                  activeIndex === idx ? "border-cn-red shadow-sm scale-105 z-10" : "border-cn-ink opacity-60 hover:opacity-100"
+                }`}
+              >
+                <img src={page.imageUrl} className="w-full h-full object-cover" alt="thumbnail" />
+                <div className="absolute bottom-0 left-0 right-0 bg-cn-ink/60 backdrop-blur-sm text-white text-[8px] font-bold py-0.5 px-1">
+                  P{idx + 1}
+                </div>
+              </button>
+            ))}
             <button
-              key={page.id}
               type="button"
-              onClick={() => setActiveIndex(idx)}
-              className={`relative flex-shrink-0 h-14 aspect-[4/3] border-2 rounded-lg overflow-hidden transition-all ${
-                activeIndex === idx ? "border-cn-red shadow-sm scale-105 z-10" : "border-cn-ink opacity-60 hover:opacity-100"
-              }`}
+              className="flex-shrink-0 h-14 aspect-[4/3] border-2 border-dashed border-cn-ink/40 rounded-lg flex flex-col items-center justify-center text-cn-ink/50 hover:bg-cn-paper transition-colors"
             >
-              <img src={page.imageUrl} className="w-full h-full object-cover" alt="thumbnail" />
-              <div className="absolute bottom-0 left-0 right-0 bg-cn-ink/60 backdrop-blur-sm text-white text-[8px] font-bold py-0.5 px-1">
-                P{idx + 1}
-              </div>
+              <Plus className="w-5 h-5" />
             </button>
-          ))}
-        {!showSpinner && (
-          <button
-            type="button"
-            className="flex-shrink-0 h-14 aspect-[4/3] border-2 border-dashed border-cn-ink/40 rounded-lg flex flex-col items-center justify-center text-cn-ink/50 hover:bg-cn-paper transition-colors"
-          >
-            <Plus className="w-5 h-5" />
-          </button>
-        )}
-      </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -9,6 +9,16 @@ word_count: 780
 tags: [马头琴, 蒙古族, 友谊, 思念]
 themes: [友谊, 思念, 音乐]
 characters: [苏和, 白马]
+culture_type: ethnic-folktale
+rag_keywords: [马头琴, 草原, 白马, 音乐, 友谊, 思念, 蒙古族, 琴声]
+core_idea: 音乐承载友谊与思念，也能把珍贵的陪伴留在心里。
+child_friendly_takeaway: 当想念朋友时，可以用音乐、画画或故事表达感谢和怀念。
+values: [友谊, 感恩, 珍惜陪伴]
+visual_motifs: [草原, 白马, 马头琴, 蓝天, 蒙古包]
+usable_story_seeds: [孩子用琴声安慰想念朋友的小马, 草原上的小伙伴一起做一把纸琴, 一段旋律带大家记住温暖的陪伴]
+avoid_direct_copy: [不要复述白马受伤和死亡情节, 不要描写暴力抢夺, 不要直接照搬苏和与白马关系]
+safety_notes: 面向儿童时弱化死亡和伤害，改为离别、纪念或温柔想念。
+integration_prompt: 可借鉴草原、白马和马头琴意象，以及音乐表达思念的主题重新创作。
 ---
 
 # 🎻 马头琴的传说

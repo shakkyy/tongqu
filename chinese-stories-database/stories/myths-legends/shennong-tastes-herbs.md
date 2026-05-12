@@ -9,6 +9,16 @@ word_count: 820
 tags: [神农, 草药, 医药, 奉献]
 themes: [奉献, 探索, 智慧]
 characters: [神农]
+culture_type: myth-hero
+rag_keywords: [神农尝百草, 草药, 植物, 尝试, 健康, 观察, 勇气, 医学]
+core_idea: 探索自然需要勇气，更需要谨慎观察和保护大家。
+child_friendly_takeaway: 孩子可以学习认识植物，但不能随便品尝陌生东西，要请大人帮助。
+values: [谨慎探索, 守护健康, 责任, 科学观察]
+visual_motifs: [草药篮, 山林, 叶子, 药草图册, 阳光]
+usable_story_seeds: [孩子和老师一起做植物观察册, 主角帮朋友认识安全草药香包, 小队学习不乱尝植物的规则]
+avoid_direct_copy: [不要复述亲自尝毒草的危险桥段, 不要鼓励儿童试吃野外植物, 不要写成偏方治疗]
+safety_notes: 必须强调未知植物不能入口，健康问题应找医生或大人。
+integration_prompt: 可借鉴草药、观察和守护健康主题，转化为安全的自然科普故事。
 ---
 
 # 🌿 神农尝百草

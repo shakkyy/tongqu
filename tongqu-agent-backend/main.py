@@ -7,11 +7,13 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
-from typing import Literal
+from typing import Any, Literal
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from agent.tongqu_agent import build_default_tongqu_agent
@@ -136,3 +138,61 @@ async def create_storybook(body: StorybookCreateRequest) -> dict:
         creation_source=body.creation_source,
         enable_style_keyword_enhancer=body.enable_style_keyword_enhancer,
     )
+
+
+@app.post("/api/storybook/create/stream")
+async def create_storybook_stream(body: StorybookCreateRequest) -> StreamingResponse:
+    async def stream() -> Any:
+        queue: asyncio.Queue[dict] = asyncio.Queue()
+
+        async def emit_stage(stage: dict) -> None:
+            await queue.put({"type": "progress", "stage": stage})
+
+        async def worker() -> None:
+            try:
+                await queue.put(
+                    {
+                        "type": "progress",
+                        "stage": {
+                            "id": "queued",
+                            "title": "任务已接收",
+                            "detail": "已收到创作请求，正在启动童趣中枢",
+                        },
+                    }
+                )
+                agent = build_default_tongqu_agent()
+                result = await agent.run(
+                    keywords=body.keywords,
+                    style=body.style,
+                    sketch_image_base64=body.sketch_image_base64,
+                    sketch_text=body.sketch_text,
+                    creation_source=body.creation_source,
+                    enable_style_keyword_enhancer=body.enable_style_keyword_enhancer,
+                    on_progress=emit_stage,
+                )
+                await queue.put({"type": "result", "data": result})
+            except Exception as exc:  # noqa: BLE001
+                await queue.put(
+                    {
+                        "type": "error",
+                        "error": "服务端流式生成失败",
+                        "detail": str(exc),
+                    }
+                )
+            finally:
+                await queue.put({"type": "done"})
+
+        task = asyncio.create_task(worker())
+        try:
+            while True:
+                item = await queue.get()
+                yield json.dumps(item, ensure_ascii=False) + "\n"
+                if item.get("type") == "done":
+                    break
+        finally:
+            if not task.done():
+                task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await task
+
+    return StreamingResponse(stream(), media_type="application/x-ndjson")

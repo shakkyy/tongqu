@@ -9,6 +9,16 @@ word_count: 980
 tags: [梁山伯, 祝英台, 爱情, 化蝶]
 themes: [爱情, 友谊, 追求梦想]
 characters: [梁山伯, 祝英台, 祝员外]
+culture_type: folktale-romance
+rag_keywords: [梁山伯与祝英台, 蝴蝶, 同窗, 友情, 坚持, 学习, 祝福, 化蝶]
+core_idea: 真诚情感和互相理解值得珍惜，美好祝福可以化作自由的意象。
+child_friendly_takeaway: 孩子可以理解为好朋友互相支持、彼此祝福，而不是成人爱情悲剧。
+values: [友谊, 尊重, 理解, 祝福]
+visual_motifs: [蝴蝶, 书院, 花丛, 纸扇, 春风]
+usable_story_seeds: [两个孩子在书院互相鼓励学习, 蝴蝶带来朋友之间的祝福, 主角把不舍变成一幅飞舞的画]
+avoid_direct_copy: [不要复述爱情悲剧主线, 不要描写殉情或死亡, 不要照搬梁祝人物关系]
+safety_notes: 低龄改写应转化为友谊、理解和祝福，避免悲剧化表达。
+integration_prompt: 可借鉴蝴蝶、书院和真诚陪伴意象，改写为儿童友谊与成长故事。
 ---
 
 # 🦋 梁山伯与祝英台

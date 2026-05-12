@@ -4,6 +4,7 @@ title: 悯农小故事
 poem: 悯农·其二
 poet: 李绅
 dynasty: 唐
+source: 唐诗《悯农·其二》
 original_text: |
   锄禾日当午，
   汗滴禾下土。
@@ -16,6 +17,16 @@ word_count: 560
 tags: [李绅, 农民, 粮食, 珍惜]
 themes: [珍惜粮食, 尊重劳动]
 characters: [老爷爷, 李绅]
+culture_type: ancient-poem
+rag_keywords: [悯农, 农田, 稻谷, 汗水, 粮食, 节约, 劳动, 米饭]
+core_idea: 每一粒粮食都来自辛勤劳动，应当珍惜食物和劳动成果。
+child_friendly_takeaway: 孩子可以从一碗饭里看见农人的付出，学会不浪费、会感谢。
+values: [节约粮食, 尊重劳动, 感恩]
+visual_motifs: [稻田, 汗珠, 饭碗, 禾苗, 太阳]
+usable_story_seeds: [孩子跟着稻谷旅行了解一粒米的来处, 餐桌上的小米粒讲述农田故事, 伙伴们一起做不浪费约定]
+avoid_direct_copy: [不要逐句复述悯农诗句, 不要写成说教口号, 不要描写过度苦难]
+safety_notes: 劳动辛苦可温和呈现，避免贫困焦虑和沉重压迫感。
+integration_prompt: 可借鉴稻田、汗水和珍惜粮食主题，转化为儿童可理解的感恩故事。
 ---
 
 # 🌾 悯农小故事

@@ -9,6 +9,16 @@ word_count: 560
 tags: [凤凰, 涅槃, 重生, 吉祥]
 themes: [重生, 美好, 吉祥]
 characters: [凤凰]
+culture_type: auspicious-myth
+rag_keywords: [凤凰, 凤凰涅槃, 神鸟, 重生, 彩羽, 希望, 火焰, 吉祥]
+core_idea: 经历困难后可以重新开始，心中的希望会带来新的光彩。
+child_friendly_takeaway: 犯错或遇到挫折并不可怕，整理心情后可以再次出发。
+values: [希望, 勇气, 重新开始, 成长]
+visual_motifs: [凤凰, 彩色羽毛, 朝霞, 梧桐树, 温暖火光]
+usable_story_seeds: [小凤凰换上新羽毛重新飞行, 孩子帮朋友从失败中找回信心, 一片彩羽点亮新的开始]
+avoid_direct_copy: [不要描写自焚或死亡重生细节, 不要写成痛苦牺牲, 不要制造火灾危险]
+safety_notes: 火焰应象征温暖光芒，避免危险火灾和死亡画面。
+integration_prompt: 可借鉴凤凰、彩羽和重生希望意象，创作儿童挫折后成长故事。
 ---
 
 # 🔥 凤凰涅槃

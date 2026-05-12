@@ -9,6 +9,16 @@ word_count: 850
 tags: [大禹, 治水, 奉献, 智慧]
 themes: [奉献, 智慧, 坚持]
 characters: [大禹, 鲧, 启]
+culture_type: myth-hero
+rag_keywords: [大禹治水, 治水, 洪水, 河流, 疏导, 责任, 坚持, 家园]
+core_idea: 面对大问题要理解规律、耐心疏导，并为大家承担责任。
+child_friendly_takeaway: 遇到困难时可以先观察原因，再和伙伴一起想办法解决。
+values: [责任, 坚持, 合作, 智慧解决问题]
+visual_motifs: [河流, 堤岸, 山谷, 木尺, 清水]
+usable_story_seeds: [孩子们合作疏通校园小水渠, 主角学习让积水找到出口, 小队用观察解决雨后难题]
+avoid_direct_copy: [不要复述三过家门而不入的牺牲情节, 不要描写灾难伤亡, 不要制造洪水恐慌]
+safety_notes: 洪水可改写为雨后积水或童话河流问题，避免灾害创伤。
+integration_prompt: 可借鉴疏导水流、责任和坚持主题，转化为儿童问题解决故事。
 ---
 
 # 🌊 大禹治水

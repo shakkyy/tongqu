@@ -4,6 +4,7 @@ title: 咏鹅宝宝
 poem: 咏鹅
 poet: 骆宾王
 dynasty: 唐
+source: 唐诗《咏鹅》
 original_text: |
   鹅，鹅，鹅，
   曲项向天歌。
@@ -16,6 +17,16 @@ word_count: 480
 tags: [骆宾王, 鹅, 动物, 观察]
 themes: [观察自然, 爱护动物]
 characters: [骆宾王, 大白鹅]
+culture_type: ancient-poem
+rag_keywords: [咏鹅, 白鹅, 池塘, 曲项, 红掌, 清水, 动物, 观察]
+core_idea: 从白鹅的颜色、动作和声音中发现自然童趣。
+child_friendly_takeaway: 孩子可以通过观察小动物学习描述世界，也学会温柔对待生命。
+values: [爱护动物, 观察力, 童真表达]
+visual_motifs: [白鹅, 池塘, 红掌, 清波, 柳树]
+usable_story_seeds: [孩子和白鹅比赛找倒影, 小白鹅带主角认识池塘颜色, 用画笔记录动物朋友的一天]
+avoid_direct_copy: [不要逐句扩写咏鹅, 不要只复述鹅在水里游的画面, 不要写成古诗背诵]
+safety_notes: 动物互动应温和友善，避免追赶、惊吓或伤害动物。
+integration_prompt: 可借鉴白鹅、池塘和儿童观察视角，生成轻松明亮的自然绘本。
 ---
 
 # 🦢 咏鹅宝宝

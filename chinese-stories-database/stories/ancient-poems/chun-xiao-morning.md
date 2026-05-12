@@ -4,6 +4,7 @@ title: 春晓清晨
 poem: 春晓
 poet: 孟浩然
 dynasty: 唐
+source: 唐诗《春晓》
 original_text: |
   春眠不觉晓，
   处处闻啼鸟。
@@ -16,6 +17,16 @@ word_count: 520
 tags: [孟浩然, 春天, 清晨, 小鸟]
 themes: [热爱自然, 珍惜春天]
 characters: [孟浩然]
+culture_type: ancient-poem
+rag_keywords: [春天, 清晨, 春晓, 鸟鸣, 花瓣, 自然, 睡醒, 春雨]
+core_idea: 在春天清晨观察自然变化，感受生命苏醒和时光流动。
+child_friendly_takeaway: 孩子可以从鸟鸣、花瓣和春雨里发现季节的美，学会珍惜身边的小变化。
+values: [热爱自然, 细心观察, 珍惜时光]
+visual_motifs: [春雨, 花瓣, 小鸟, 窗前晨光, 绿树]
+usable_story_seeds: [孩子醒来后和小鸟一起寻找春天的声音, 把落花收进自然观察本, 用春雨和花瓣做一场温柔冒险]
+avoid_direct_copy: [不要逐句翻译原诗, 不要只讲孟浩然醒来的原场景, 不要写成诗词注释]
+safety_notes: 保持明亮温柔，避免渲染伤春或失落情绪。
+integration_prompt: 可借鉴春晓的清晨、鸟鸣、风雨和落花意象，引导孩子观察自然与季节。
 ---
 
 # 🌸 春晓清晨

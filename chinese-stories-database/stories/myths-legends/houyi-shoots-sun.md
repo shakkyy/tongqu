@@ -9,6 +9,16 @@ word_count: 720
 tags: [后羿, 太阳, 射箭, 英雄]
 themes: [英雄, 勇敢, 拯救]
 characters: [后羿, 尧帝, 十个太阳]
+culture_type: myth-hero
+rag_keywords: [后羿射日, 太阳, 炎热, 勇敢, 弓箭, 守护, 清凉, 秩序]
+core_idea: 勇气应服务于守护大家，也要让世界恢复平衡。
+child_friendly_takeaway: 当环境太热或太乱时，可以冷静想办法，和大家一起恢复舒服的生活。
+values: [勇敢, 守护, 平衡, 责任]
+visual_motifs: [太阳, 弓箭, 旱地, 树荫, 清风]
+usable_story_seeds: [孩子们想办法给小镇降温, 主角帮助太阳学会轮流休息, 伙伴们一起寻找清凉树荫]
+avoid_direct_copy: [不要直接复述射下九个太阳的暴力动作, 不要描写灾难死亡, 不要把弓箭写成儿童可模仿武器]
+safety_notes: 将射日改为调和太阳、寻找清凉或安全象征动作，避免武器模仿。
+integration_prompt: 可借鉴太阳、炎热和平衡秩序主题，转化为安全的守护故事。
 ---
 
 # 🏹 后羿射日

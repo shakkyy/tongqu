@@ -9,6 +9,16 @@ word_count: 780
 tags: [红孩儿, 孙悟空, 三昧真火, 观音]
 themes: [智慧, 勇敢, 团队合作]
 characters: [红孩儿, 孙悟空, 观音菩萨]
+culture_type: classic-novel-adaptation
+rag_keywords: [西游记, 红孩儿, 火焰, 冷静, 合作, 取经, 孙悟空, 灭火]
+core_idea: 面对急躁和冲突，需要冷静沟通、合作化解问题。
+child_friendly_takeaway: 生气像小火苗，孩子可以学会深呼吸、说清楚和请朋友帮忙。
+values: [情绪管理, 合作, 冷静, 沟通]
+visual_motifs: [小火焰, 芭蕉叶, 云朵, 山路, 金箍棒纹样]
+usable_story_seeds: [小伙伴帮爱发脾气的火娃降温, 主角用深呼吸把火苗变成灯光, 团队合作通过热热的小山谷]
+avoid_direct_copy: [不要复述战斗降妖情节, 不要描写喷火伤人, 不要强化打斗制服]
+safety_notes: 火焰应象征情绪或安全灯光，避免危险和暴力模仿。
+integration_prompt: 可借鉴红孩儿火焰意象，改写为儿童情绪管理和团队合作故事。
 ---
 
 # 🔥 大战红孩儿

@@ -9,6 +9,16 @@ word_count: 620
 tags: [西王母, 昆仑山, 长生不老]
 themes: [威严, 善良, 长生]
 characters: [西王母]
+culture_type: shanhaijing-deity
+rag_keywords: [西王母, 昆仑山, 仙桃, 玉山, 守护, 祝福, 神话, 长寿]
+core_idea: 神话中的仙桃和昆仑意象寄托人们对健康、祝福与守护的向往。
+child_friendly_takeaway: 美好的祝福可以分享给家人朋友，健康和陪伴比神奇宝物更重要。
+values: [祝福, 分享, 健康, 守护]
+visual_motifs: [昆仑山, 仙桃, 玉石宫殿, 祥云, 青鸟]
+usable_story_seeds: [孩子把仙桃祝福卡送给家人, 青鸟带来健康祝愿, 主角在昆仑花园学会分享]
+avoid_direct_copy: [不要复述复杂神仙谱系, 不要写追求长生不老药, 不要照搬嫦娥仙药情节]
+safety_notes: 避免长生执念和神药误导，转化为健康祝福与分享。
+integration_prompt: 可借鉴昆仑、仙桃、青鸟和祝福意象，生成温暖的分享故事。
 ---
 
 # 👑 西王母传奇

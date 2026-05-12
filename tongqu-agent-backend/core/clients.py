@@ -564,25 +564,25 @@ except ImportError:  # pragma: no cover
 STYLE_PROMPTS: Dict[str, Dict[str, str]] = {
     "剪纸": {
         "prefix": "Chinese paper-cut art style, red and gold, flat layers, decorative folk pattern, children's picture book, warm and clear, ",
-        "suffix": ", Final image must look like paper-cut folk art, not oil painting or 3D, no horror."
+        "suffix": ", Final image must look like paper-cut folk art, not oil painting or 3D, no horror, no text, no letters, no watermark, no logo."
     },
     "水墨": {
         "prefix": "Traditional Chinese shuimo ink wash painting, sumi-e on rice paper, soft wet brush strokes and controlled bleeding, generous negative space (留白), muted ink grays and light sepia washes, poetic children's book illustration, ",
-        "suffix": ", Final image must read clearly as Chinese ink wash (水墨), NOT photorealistic, NOT 3D render, NOT thick glossy cel-shaded anime, avoid saturated rainbow colors, no horror."
+        "suffix": ", Final image must read clearly as Chinese ink wash (水墨), NOT photorealistic, NOT 3D render, NOT thick glossy cel-shaded anime, avoid saturated rainbow colors, no horror, no text, no letters, no watermark, no logo."
     },
     "皮影": {
         "prefix": "Chinese shadow puppetry theater style, warm amber backlight, flat colored silhouette cutouts, stage-like framing, children's picture book, ",
-        "suffix": ", Final image must look like shadow puppet silhouettes under stage light, no horror."
+        "suffix": ", Final image must look like shadow puppet silhouettes under stage light, no horror, no text, no letters, no watermark, no logo."
     },
     "漫画": {
         "prefix": "Friendly children's comic panel style, clean ink outlines, soft flat or light cel shading, bright but harmonious colors, Chinese cultural elements, ",
-        "suffix": ", Final image must look like friendly children's comic illustration, no horror."
+        "suffix": ", Final image must look like friendly children's comic illustration, no horror, no text, no letters, no watermark, no logo."
     }
 }
 
 DEFAULT_STYLE = {
     "prefix": "Chinese children's picture book illustration, culturally appropriate, warm, ",
-    "suffix": ", Keep a consistent children's book illustration style, no horror."
+    "suffix": ", Keep a consistent children's book illustration style, no horror, no text, no letters, no watermark, no logo."
 }
 
 

@@ -14,7 +14,7 @@ import {
   type BookshelfEntry,
 } from "./lib/bookshelfStorage";
 import { buildKeywordsForApi, type KeywordSelectionPayload } from "./lib/keywordPayload";
-import type { StoryPage, StoryStyle } from "./types";
+import type { CultureHit, CultureRagInfo, StoryPage, StoryStyle } from "./types";
 import { Sparkles, Wand2, Mic, Type, PenTool } from "lucide-react";
 
 const API_BASE = (import.meta as unknown as { env: Record<string, string | undefined> }).env
@@ -53,6 +53,39 @@ const WAITING_PAGES: StoryPage[] = [
   },
 ];
 
+type GenerationStage = {
+  id: string;
+  title: string;
+  detail: string;
+};
+
+type StreamProgressStage = {
+  id?: string;
+  title?: string;
+  detail?: string;
+  meta?: Record<string, unknown>;
+};
+
+type StorybookStreamMessage =
+  | { type: "progress"; stage?: StreamProgressStage }
+  | { type: "result"; data?: StorybookCreateResponse }
+  | { type: "error"; error?: string; detail?: string }
+  | { type: "done" };
+
+type StorybookCreateResponse = {
+  ok?: boolean;
+  error?: string;
+  detail?: string;
+  title?: string;
+  scenes?: { text: string }[];
+  image_urls?: string[];
+  audio_urls?: string[];
+  culture_rag_used?: boolean;
+  culture_hits?: CultureHit[];
+  culture_context?: string;
+  culture_integration_note?: string;
+};
+
 function makeBookshelfFingerprint(title: string, pages: StoryPage[]): string {
   const normalizedTitle = (title || "").trim();
   const body = pages
@@ -66,6 +99,9 @@ export default function App() {
   const [theme] = useState<"default" | "spring">("default");
   const [creationMode, setCreationMode] = useState<"voice" | "keywords" | "sketch">("voice");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generationStageIndex, setGenerationStageIndex] = useState(0);
+  const [generationElapsedSec, setGenerationElapsedSec] = useState(0);
+  const [stageDetailOverrides, setStageDetailOverrides] = useState<Record<string, string>>({});
   const [activeIndex, setActiveIndex] = useState(0);
   const [style, setStyle] = useState<StoryStyle>("paper-cut");
   const [keywordPayload, setKeywordPayload] = useState<KeywordSelectionPayload>(() => ({
@@ -74,6 +110,7 @@ export default function App() {
     scene: { tags: [], custom: "" },
   }));
   const [remotePages, setRemotePages] = useState<StoryPage[] | null>(null);
+  const [cultureInfo, setCultureInfo] = useState<CultureRagInfo | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
   const [sketchSnapshotUrl, setSketchSnapshotUrl] = useState<string | null>(null);
   const [sketchDescription, setSketchDescription] = useState("");
@@ -160,6 +197,7 @@ export default function App() {
         pageCount: remotePages.length,
         mode: src,
         sketchThumb: lastBookSource === "sketch" ? sketchSnapshotUrl ?? undefined : undefined,
+        culture: cultureInfo ?? undefined,
         pages: remotePages.map((p) => ({ ...p })),
       });
       await refreshBookshelf();
@@ -168,7 +206,7 @@ export default function App() {
       console.warn("书架保存失败（可能超出浏览器存储上限）", err);
       setBookshelfNotice("添加失败：书架空间不足");
     }
-  }, [remotePages, lastBookSource, sketchSnapshotUrl, refreshBookshelf]);
+  }, [remotePages, lastBookSource, sketchSnapshotUrl, cultureInfo, refreshBookshelf]);
 
   const onKeywordsChange = useCallback((p: KeywordSelectionPayload) => {
     setKeywordPayload(p);
@@ -189,6 +227,62 @@ export default function App() {
     if (style === "comic") return "漫画小精灵正在勾线涂色...";
     return "皮影爷爷正在点亮皮影灯...";
   }, [isGenerating, style, creationMode]);
+
+  const generationStages = useMemo<GenerationStage[]>(() => {
+    if (creationMode === "sketch") {
+      return [
+        { id: "queued", title: "任务已接收", detail: "童趣中枢正在准备创作材料" },
+        { id: "sketch", title: "解析草图灵感", detail: "正在理解孩子画里的主角和场景" },
+        { id: "orchestrate", title: "中枢 Agent 编排", detail: "规划故事、分镜与配图流程" },
+        { id: "culture", title: "检索文化语料", detail: "查找传统文化主题和儿童化改写线索" },
+        { id: "draft", title: "撰写故事正文", detail: "生成儿童友好的故事文本" },
+        { id: "board", title: "生成分镜脚本", detail: "拆分为 3~4 个页面场景" },
+        { id: "image", title: "绘制插画场景", detail: "按分镜逐页生成中国风配图" },
+        { id: "tts", title: "合成朗读音频", detail: "为每页旁白生成温和朗读" },
+        { id: "review", title: "安全审阅与润色", detail: "进行儿童安全复核与价值观对齐" },
+      ];
+    }
+    return [
+      { id: "queued", title: "任务已接收", detail: "童趣中枢正在准备创作材料" },
+      { id: "orchestrate", title: "中枢 Agent 编排", detail: "规划故事、分镜与配图流程" },
+      { id: "culture", title: "检索文化语料", detail: "查找传统文化主题和儿童化改写线索" },
+      { id: "draft", title: "撰写故事正文", detail: "生成儿童友好的故事文本" },
+      { id: "board", title: "生成分镜脚本", detail: "拆分为 3~4 个页面场景" },
+      { id: "image", title: "绘制插画场景", detail: "按分镜逐页生成中国风配图" },
+      { id: "tts", title: "合成朗读音频", detail: "为每页旁白生成温和朗读" },
+      { id: "review", title: "安全审阅与润色", detail: "进行儿童安全复核与价值观对齐" },
+    ];
+  }, [creationMode]);
+
+  const stageIndexById = useMemo(() => {
+    return generationStages.reduce<Record<string, number>>((acc, stage, idx) => {
+      acc[stage.id] = idx;
+      return acc;
+    }, {});
+  }, [generationStages]);
+
+  const panelStages = useMemo(() => {
+    return generationStages.map((s) => ({
+      ...s,
+      detail: stageDetailOverrides[s.id] ?? s.detail,
+    }));
+  }, [generationStages, stageDetailOverrides]);
+
+  useEffect(() => {
+    if (!isGenerating) {
+      setGenerationStageIndex(0);
+      setGenerationElapsedSec(0);
+      return;
+    }
+    setGenerationStageIndex(0);
+    setGenerationElapsedSec(0);
+    const elapsedTimer = window.setInterval(() => {
+      setGenerationElapsedSec((prev) => prev + 1);
+    }, 1000);
+    return () => {
+      window.clearInterval(elapsedTimer);
+    };
+  }, [isGenerating]);
 
   const speakPage = (pages: StoryPage[], index: number) => {
     const page = pages[index];
@@ -219,6 +313,7 @@ export default function App() {
     setSketchSnapshotUrl(null);
     if (lastBookSource === "sketch") {
       setRemotePages(null);
+      setCultureInfo(null);
       setLastBookSource(null);
     }
     setActiveIndex(0);
@@ -226,6 +321,7 @@ export default function App() {
 
   const openBookFromShelf = (entry: BookshelfEntry) => {
     setRemotePages(entry.pages.map((p) => ({ ...p })));
+    setCultureInfo(entry.culture ?? null);
     setActiveIndex(0);
     setLastBookSource(entry.mode);
     setSketchSnapshotUrl(entry.sketchThumb ?? null);
@@ -248,6 +344,7 @@ export default function App() {
       }
       sketchImageForApi = snap;
       setRemotePages(null);
+      setCultureInfo(null);
     }
 
     if (creationMode === "voice") {
@@ -261,6 +358,8 @@ export default function App() {
     }
 
     setIsGenerating(true);
+    setGenerationStageIndex(0);
+    setStageDetailOverrides({});
     try {
       const sketchNote = sketchDescription.trim();
       const kw =
@@ -272,7 +371,7 @@ export default function App() {
             ? buildKeywordsForApi(keywordPayload)
             : voiceEditedText.trim();
       const base = API_BASE.replace(/\/$/, "");
-      const res = await fetch(`${base}/api/storybook/create`, {
+      const res = await fetch(`${base}/api/storybook/create/stream`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -283,15 +382,66 @@ export default function App() {
           ...(creationMode === "sketch" && sketchNote ? { sketch_text: sketchNote } : {}),
         }),
       });
-      const data = (await res.json()) as {
-        ok?: boolean;
-        error?: string;
-        detail?: string;
-        title?: string;
-        scenes?: { text: string }[];
-        image_urls?: string[];
-        audio_urls?: string[];
-      };
+      if (!res.ok || !res.body) {
+        setApiError(`请求失败（HTTP ${res.status}）`);
+        if (creationMode === "sketch") setSketchSnapshotUrl(null);
+        return;
+      }
+      let finalData: StorybookCreateResponse | null = null;
+      let buffered = "";
+      const decoder = new TextDecoder("utf-8");
+      const reader = res.body.getReader();
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffered += decoder.decode(value, { stream: true });
+        const lines = buffered.split("\n");
+        buffered = lines.pop() ?? "";
+        for (const rawLine of lines) {
+          const line = rawLine.trim();
+          if (!line) continue;
+          let message: StorybookStreamMessage | null = null;
+          try {
+            message = JSON.parse(line) as StorybookStreamMessage;
+          } catch {
+            continue;
+          }
+          if (message.type === "progress") {
+            const stageId = message.stage?.id;
+            const stageDetail = message.stage?.detail?.trim();
+            if (stageId && stageIndexById[stageId] !== undefined) {
+              const idx = stageIndexById[stageId];
+              setGenerationStageIndex((prev) => Math.max(prev, idx));
+              if (stageDetail) {
+                setStageDetailOverrides((prev) => ({ ...prev, [stageId]: stageDetail }));
+              }
+            }
+          } else if (message.type === "result") {
+            finalData = message.data ?? null;
+          } else if (message.type === "error") {
+            setApiError(message.detail || message.error || "服务端流式生成失败");
+          }
+        }
+      }
+      const tail = buffered.trim();
+      if (tail) {
+        try {
+          const message = JSON.parse(tail) as StorybookStreamMessage;
+          if (message.type === "result") {
+            finalData = message.data ?? finalData;
+          } else if (message.type === "error") {
+            setApiError(message.detail || message.error || "服务端流式生成失败");
+          }
+        } catch {
+          // ignore malformed tail chunk
+        }
+      }
+      const data = finalData;
+      if (!data) {
+        setApiError("未收到后端结果，请重试");
+        if (creationMode === "sketch") setSketchSnapshotUrl(null);
+        return;
+      }
       if (!data.ok) {
         setApiError(data.detail || data.error || `请求失败（HTTP ${res.status}）`);
         if (creationMode === "sketch") setSketchSnapshotUrl(null);
@@ -309,6 +459,12 @@ export default function App() {
           audioUrl: data.audio_urls?.[i],
         }));
         setRemotePages(pages);
+        setCultureInfo({
+          used: Boolean(data.culture_rag_used),
+          hits: data.culture_hits ?? [],
+          context: data.culture_context,
+          integrationNote: data.culture_integration_note,
+        });
         setActiveIndex(0);
         const src: BookshelfEntry["mode"] =
           creationMode === "sketch" ? "sketch" : creationMode === "keywords" ? "keywords" : "voice";
@@ -558,6 +714,10 @@ export default function App() {
               isGenerating={isGenerating}
               forceLoadingOnly={creationMode === "sketch" && isGenerating}
               progressText={progressText}
+              generationStages={panelStages}
+              generationStageIndex={generationStageIndex}
+              generationElapsedSec={generationElapsedSec}
+              culture={cultureInfo}
               onSpeakPage={(i) => autoPlayPage(i)}
               onAddToBookshelf={canAddToShelf ? () => void handleAddToBookshelf() : undefined}
             />

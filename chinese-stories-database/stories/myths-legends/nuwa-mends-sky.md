@@ -9,6 +9,16 @@ word_count: 780
 tags: [女娲, 补天, 英雄, 拯救]
 themes: [勇敢, 担当, 奉献]
 characters: [女娲]
+culture_type: myth-heroine
+rag_keywords: [女娲补天, 五彩石, 天空, 彩虹, 守护, 修补, 家园, 灾后重建]
+core_idea: 面对破损的世界，可以用勇气、智慧和爱去修补守护。
+child_friendly_takeaway: 当东西坏了或朋友难过时，孩子也能用小行动帮忙修补。
+values: [守护, 责任, 勇气, 修复]
+visual_motifs: [五彩石, 天空裂缝, 彩虹, 山川, 云朵]
+usable_story_seeds: [孩子收集彩色石子修补天空画布, 伙伴们一起修好被风吹乱的小屋, 主角用五色光安慰朋友]
+avoid_direct_copy: [不要复述天塌地陷的灾难细节, 不要描写巨兽战斗, 不要制造世界毁灭恐慌]
+safety_notes: 弱化灾难恐惧，突出修补、合作和安心感。
+integration_prompt: 可借鉴五彩石、补天和彩虹意象，创作儿童守护与修复故事。
 ---
 
 # 🌈 女娲补天

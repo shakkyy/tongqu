@@ -8,3 +8,19 @@ export interface StoryPage {
   /** 后端 NLS 返回的 data:audio/mpeg;base64,... */
   audioUrl?: string;
 }
+
+export interface CultureHit {
+  title: string;
+  category?: string;
+  score?: number;
+  core_idea?: string;
+  child_friendly_takeaway?: string;
+  visual_motifs?: string[];
+}
+
+export interface CultureRagInfo {
+  used: boolean;
+  hits: CultureHit[];
+  context?: string;
+  integrationNote?: string;
+}

@@ -9,6 +9,16 @@ word_count: 580
 tags: [盘古, 创世, 天地, 奉献]
 themes: [创世, 奉献, 勇敢]
 characters: [盘古]
+culture_type: origin-myth
+rag_keywords: [盘古开天, 天地, 创世, 巨人, 山川, 日月, 自然, 万物]
+core_idea: 天地万物彼此相连，自然世界值得敬畏和爱护。
+child_friendly_takeaway: 孩子可以从山川日月中感受自然的珍贵，学会爱护环境。
+values: [敬畏自然, 环保, 创造, 生命连接]
+visual_motifs: [巨人剪影, 天地分开, 太阳月亮, 山川河流, 云雾]
+usable_story_seeds: [孩子走进一幅天地初开的画, 主角寻找山川日月的来历, 伙伴们用积木搭出自然世界]
+avoid_direct_copy: [不要复述盘古身体化万物的死亡细节, 不要写成沉重牺牲叙事, 不要过度宏大神秘化]
+safety_notes: 将创世意象童话化，避免死亡和身体分解细节。
+integration_prompt: 可借鉴天地初开、山川日月和自然万物意象，生成环保与探索故事。
 ---
 
 # 🌍 盘古开天辟地

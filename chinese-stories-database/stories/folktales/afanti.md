@@ -9,6 +9,16 @@ word_count: 720
 tags: [阿凡提, 智慧, 正义, 幽默]
 themes: [智慧, 正义, 善良]
 characters: [阿凡提, 巴依老爷, 国王]
+culture_type: folktale-wisdom
+rag_keywords: [阿凡提, 智慧, 幽默, 公平, 机智, 毛驴, 集市, 帮助]
+core_idea: 智慧和幽默可以帮助人们看见问题，也能温和地维护公平。
+child_friendly_takeaway: 孩子可以学习动脑筋解决问题，用善意和机智帮助别人。
+values: [智慧, 公平, 善意, 勇敢表达]
+visual_motifs: [毛驴, 集市, 新疆小镇, 长袍, 笑脸人群]
+usable_story_seeds: [孩子和机智伙伴解决集市误会, 用一个小谜语帮助朋友找回公平, 毛驴带来一场幽默的办法]
+avoid_direct_copy: [不要照搬具体阿凡提故事桥段, 不要写欺骗取笑弱者, 不要强化地域刻板印象]
+safety_notes: 幽默应友善，不嘲笑外貌、身份或弱势处境。
+integration_prompt: 可借鉴阿凡提式机智、公平和幽默感，围绕新角色设计轻喜剧问题解决故事。
 ---
 
 # 🐴 阿凡提的故事

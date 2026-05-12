@@ -9,6 +9,16 @@ word_count: 580
 tags: [沙和尚, 流沙河, 加入, 忠诚]
 themes: [团结, 忠诚, 改过]
 characters: [沙和尚, 孙悟空, 猪八戒, 唐僧]
+culture_type: classic-novel-adaptation
+rag_keywords: [西游记, 沙和尚, 流沙河, 加入团队, 改过, 可靠, 行李, 合作]
+core_idea: 每个人都有重新开始的机会，可靠和踏实也是重要本领。
+child_friendly_takeaway: 犯过错后可以真诚改正，用行动重新赢得朋友信任。
+values: [改正错误, 可靠, 合作, 责任]
+visual_motifs: [流沙河, 行李担, 僧袍, 河岸, 平静水面]
+usable_story_seeds: [孩子帮助沉默伙伴加入小队, 主角用踏实行动完成任务, 大家一起过一条安全小河]
+avoid_direct_copy: [不要复述流沙河打斗和吃人设定, 不要描写惩罚或恐怖过去, 不要标签化沉默角色]
+safety_notes: 突出接纳、改正和团队责任，避免恐怖背景。
+integration_prompt: 可借鉴沙和尚加入团队和流沙河意象，创作接纳新伙伴故事。
 ---
 
 # 🌊 沙和尚加入

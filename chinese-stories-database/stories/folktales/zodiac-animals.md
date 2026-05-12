@@ -9,6 +9,16 @@ word_count: 780
 tags: [生肖, 动物, 比赛, 春节]
 themes: [竞争, 合作, 智慧]
 characters: [玉皇大帝, 老鼠, 牛, 老虎, 兔子, 龙, 蛇, 马, 羊, 猴, 鸡, 狗, 猪]
+culture_type: folk-calendar
+rag_keywords: [十二生肖, 生肖, 动物, 排序, 新年, 比赛, 鼠牛虎兔, 传统历法]
+core_idea: 十二生肖用动物形象记录时间，也表达各有所长、互相尊重。
+child_friendly_takeaway: 每个孩子和每种动物都有自己的长处，合作比争第一更重要。
+values: [尊重差异, 合作, 认识传统]
+visual_motifs: [十二动物, 新年灯笼, 赛道, 玉牌, 圆形年轮]
+usable_story_seeds: [动物们一起办新年运动会, 孩子寻找自己的生肖朋友, 十二生肖合作修好时间钟]
+avoid_direct_copy: [不要照搬生肖排位争夺情节, 不要突出欺骗获胜, 不要贬低任何生肖动物]
+safety_notes: 弱化输赢和欺骗，强调每个生肖的优点与合作。
+integration_prompt: 可借鉴十二生肖动物和传统纪年意象，设计认识自我与合作的故事。
 ---
 
 # 🐭 十二生肖

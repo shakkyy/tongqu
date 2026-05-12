@@ -9,6 +9,16 @@ word_count: 540
 tags: [九尾狐, 青丘山, 吉祥]
 themes: [吉祥, 神秘, 善良]
 characters: [九尾狐]
+culture_type: shanhaijing-creature
+rag_keywords: [九尾狐, 山海经, 狐狸, 九条尾巴, 灵巧, 变化, 智慧, 山林]
+core_idea: 灵巧和聪明应被用来帮助朋友，而不是欺骗别人。
+child_friendly_takeaway: 孩子可以学习机智解决问题，也要诚实表达。
+values: [智慧, 诚实, 善意, 自我接纳]
+visual_motifs: [九尾狐狸, 山林, 月光, 花纹尾巴, 灵石]
+usable_story_seeds: [小狐狸用九条尾巴帮大家搬灯笼, 孩子帮助害羞的小狐接纳特别外貌, 主角用聪明办法化解误会]
+avoid_direct_copy: [不要写成魅惑或成人化形象, 不要照搬妖怪害人桥段, 不要鼓励欺骗变化]
+safety_notes: 九尾狐应儿童化、友善化，避免惊悚和成人化。
+integration_prompt: 可借鉴九尾狐的灵巧外形和智慧意象，改写为善意机智故事。
 ---
 
 # 🦊 九尾狐传说

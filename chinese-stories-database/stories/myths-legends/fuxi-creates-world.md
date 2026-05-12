@@ -9,6 +9,16 @@ word_count: 690
 tags: [伏羲, 八卦, 文明, 创造]
 themes: [创造, 文明, 智慧]
 characters: [伏羲, 女娲]
+culture_type: origin-myth
+rag_keywords: [伏羲, 八卦, 渔网, 自然规律, 创世, 观察, 生活智慧, 结绳]
+core_idea: 通过观察天地自然，人们学会工具、规则和生活智慧。
+child_friendly_takeaway: 孩子可以向自然学习，用小发明让生活更方便。
+values: [观察自然, 创造, 生活智慧]
+visual_motifs: [河图, 八卦纹样, 渔网, 藤蔓, 日月山川]
+usable_story_seeds: [孩子从蜘蛛网得到编织灵感, 伙伴们用自然图案设计小工具, 主角发现风雨变化的规律]
+avoid_direct_copy: [不要复述宏大创世神话全过程, 不要写成玄学解释, 不要照搬伏羲具体神迹]
+safety_notes: 抽象文化符号应儿童化解释，避免晦涩玄学和神秘恐惧。
+integration_prompt: 可借鉴观察自然、八卦纹样和工具发明意象，生成探索与创造故事。
 ---
 
 # ☯️ 伏羲创世

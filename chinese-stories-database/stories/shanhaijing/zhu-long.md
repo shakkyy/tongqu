@@ -9,6 +9,16 @@ word_count: 540
 tags: [烛龙, 昼夜, 季节, 神祇]
 themes: [自然, 神奇, 想象]
 characters: [烛龙]
+culture_type: shanhaijing-creature
+rag_keywords: [烛龙, 山海经, 昼夜, 眼睛, 时间, 光暗, 四季, 守护]
+core_idea: 昼夜和四季有自己的节奏，世界在规律中安稳运转。
+child_friendly_takeaway: 孩子可以认识白天黑夜的变化，学会按节奏生活和休息。
+values: [认识自然规律, 规律作息, 安心感]
+visual_motifs: [巨龙眼睛, 极北雪山, 日夜交替, 星空, 晨光]
+usable_story_seeds: [孩子帮助小镇找回白天黑夜的节奏, 烛龙眨眼带来星星和晨光, 主角制作自己的时间小钟]
+avoid_direct_copy: [不要把烛龙写成恐怖巨兽, 不要照搬古籍神怪设定, 不要制造黑暗恐惧]
+safety_notes: 突出自然规律和安心作息，避免恐怖黑暗氛围。
+integration_prompt: 可借鉴烛龙掌管昼夜的意象，生成认识时间与自然节律的故事。
 ---
 
 # 👁️ 烛龙睁眼

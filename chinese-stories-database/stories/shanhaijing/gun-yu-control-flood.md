@@ -9,6 +9,16 @@ word_count: 780
 tags: [鲧, 禹, 治水, 息壤]
 themes: [奉献, 智慧, 坚持]
 characters: [鲧, 禹, 天帝]
+culture_type: shanhaijing-myth
+rag_keywords: [鲧禹治水, 治水, 洪水, 息壤, 河流, 父子, 疏导, 家园]
+core_idea: 治理问题需要找到合适方法，经验也会在代际之间传承。
+child_friendly_takeaway: 遇到难题时可以从失败中学习，换一种方法继续尝试。
+values: [反思, 坚持, 责任, 方法意识]
+visual_motifs: [洪水, 息壤, 河道, 山谷, 治水工具]
+usable_story_seeds: [孩子从堵水失败中学会疏通小溪, 主角听长辈经验修好水渠模型, 伙伴们一起设计安全排水路线]
+avoid_direct_copy: [不要复述惩罚和死亡情节, 不要描写灾难伤亡, 不要强化父子悲剧]
+safety_notes: 将洪水改为安全的模型或雨后积水问题，突出学习方法。
+integration_prompt: 可借鉴鲧禹治水的试错与疏导主题，转化为儿童科学解决问题故事。
 ---
 
 # 🌊 鲧禹治水

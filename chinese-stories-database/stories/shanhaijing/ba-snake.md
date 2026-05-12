@@ -9,6 +9,16 @@ word_count: 480
 tags: [巴蛇, 吞象, 寓言]
 themes: [贪婪]
 characters: [巴蛇]
+culture_type: shanhaijing-creature
+rag_keywords: [巴蛇吞象, 巴蛇, 吞象, 寓言, 贪婪, 大象, 秤杆, 水船, 山林, 河水, 云雾]
+core_idea: 提炼「巴蛇吞象」中的贪婪，作为儿童故事的精神内核。
+child_friendly_takeaway: 孩子可以从这个文化主题中理解贪婪，并把它用在自己的生活和想象里。
+values: [贪婪]
+visual_motifs: [大象, 秤杆, 水船, 山林, 河水, 云雾]
+usable_story_seeds: [孩子和伙伴从「巴蛇吞象」的文化意象获得灵感，解决一个温暖的小问题, 围绕大象设计新的儿童主角和安全冒险, 把传统主题改写成友谊、亲情或合作的小故事]
+avoid_direct_copy: [不要复述《巴蛇吞象》原始情节, 不要照搬原有人物关系和原文表达, 不要把故事写成百科介绍或课堂讲解]
+safety_notes: 保留积极寓意，弱化恐怖、死亡、惩罚、成人婚恋和暴力冲突，改写为儿童友好的表达。
+integration_prompt: 可借鉴「巴蛇吞象」的核心思想、儿童友好寓意和视觉意象，围绕用户输入重新创作，避免复述原故事。
 ---
 
 # 🐍 巴蛇吞象

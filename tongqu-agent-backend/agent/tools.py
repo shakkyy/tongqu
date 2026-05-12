@@ -51,6 +51,10 @@ class StoryPlanningArgs(BaseModel):
         None,
         description="来自草图理解；无草图可为空",
     )
+    culture_context: str | None = Field(
+        None,
+        description="文化 RAG 检索后用于故事策划的短上下文；无命中可为空",
+    )
     style: str = Field(
         ...,
         description="paper-cut | ink-wash | shadow-puppet | comic",
@@ -149,6 +153,23 @@ def build_story_planning_prompt(
 
     vs = (args.visual_semantics or "").strip()
     vs_block = f"【视觉语义（来自草图理解，可能为空）】\n{vs}\n" if vs else "【视觉语义】无（非草图创作）。\n"
+    culture = (args.culture_context or "").strip()
+    culture_block = (
+        f"""
+【文化发掘参考】
+{culture}
+
+使用规则：
+1. 如果文化参考为空或匹配度低，可以不强行使用。
+2. 如果文化参考可用，请只吸收其中的核心思想、儿童友好寓意、文化意象和视觉元素。
+3. 禁止照搬原始故事情节、原文表达、具体人物关系；对 avoid_direct_copy 中的内容必须规避。
+4. 故事必须仍然围绕用户输入展开，文化元素是“灵感来源”，不是替代用户创意。
+5. 输出中 positive_values 需要体现文化参考带来的价值观。
+6. outline_zh 和 story_body_zh 中要自然体现文化元素，但不要写成百科介绍。
+""".strip()
+        if culture
+        else "【文化发掘参考】无高相关命中，本次不强行注入传统文化素材。"
+    )
 
     return f"""
 {system_safe_block}
@@ -166,7 +187,15 @@ def build_story_planning_prompt(
 4) positive_values: 字符串数组，列出本故事要体现的正向价值观（如 勇敢、友谊、合作）。
 5) story_body_zh: **完整故事正文**（中文），**150–250 个汉字**，与 outline_zh 一致、叙事连贯有结局。
 
+语言要求：
+- 必须像 3-10 岁儿童绘本，句子短、意思直接、画面清楚。
+- 少用成语、古风词和成人文学化表达；避免“月华、窗棂、笑靥、刹那、银辉”等孩子不易理解的词。
+- 每个关键情节要让孩子能明白：谁在做什么、为什么做、结果怎样。
+- 温暖但不要晦涩，不要把故事写成散文诗。
+
 {vs_block}
+{culture_block}
+
 【核心素材（已做安全过滤）】
 {args.core_keywords}
 
@@ -203,7 +232,7 @@ def build_storyboard_prompt(
 1) scenes 数组长度必须为 3 或 4。
 2) 每个 scene：
    - scene_no: 从 1 递增
-   - text_zh: 该页中文旁白（约 30-50 字），全部来自或紧密改编自 story_body_zh，四镜合起来覆盖完整故事。
+   - text_zh: 该页中文旁白（约 30-50 字），全部来自或紧密改编自 story_body_zh，四镜合起来覆盖完整故事；语言必须简单直白，适合孩子朗读，避免“月华、窗棂、笑靥、刹那、银辉”等生僻或成人文学化词语。
    - image_prompt_en: **必须全英文**；**不要叙事动作**（禁止 decided to / felt 等），只描述定格画面可见内容。
    - 结构建议：[Main Subject & Appearance] + [Action/Pose] + [Environment] + [Lighting/Atmosphere]
    - **角色一致性**：将 character_script 中每条 appearance_anchor_en **原样嵌入**每个场景的 image_prompt_en（可微调语序但特征词保持一致）。

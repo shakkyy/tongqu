@@ -10,6 +10,16 @@ tags: [七夕, 爱情, 天河, 喜鹊]
 themes: [爱情, 思念, 坚持]
 characters: [牛郎, 织女, 老牛, 王母娘娘]
 festival: 七夕节
+culture_type: festival-folktale
+rag_keywords: [牛郎织女, 七夕, 星星, 鹊桥, 银河, 思念, 织布, 相会]
+core_idea: 星空和节日寄托思念，也提醒人们珍惜相伴和守信。
+child_friendly_takeaway: 分开时也可以互相祝福、守约定，并珍惜每次见面。
+values: [守信, 珍惜陪伴, 温柔表达]
+visual_motifs: [银河, 鹊桥, 星星, 织布机, 喜鹊]
+usable_story_seeds: [孩子和星星朋友搭一座纸鹊桥, 主角用星光给远方朋友送约定, 伙伴们在七夕夜观察银河]
+avoid_direct_copy: [不要复述成人爱情与分离惩罚主线, 不要照搬牛郎织女人物关系, 不要描写偷衣等不适宜情节]
+safety_notes: 转化为朋友约定和家人陪伴，避免成人爱情、惩罚和不当行为。
+integration_prompt: 可借鉴七夕星空、鹊桥和守约主题，围绕儿童友谊重新创作。
 ---
 
 # 🌌 牛郎织女

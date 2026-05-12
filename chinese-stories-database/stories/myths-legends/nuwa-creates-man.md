@@ -14,6 +14,16 @@ illustration_prompts:
   - scene1: "空旷的大地，只有女娲一人"
   - scene2: "女娲用泥捏出许多小人"
   - scene3: "小泥人活过来，跑来跑去"
+culture_type: origin-myth
+rag_keywords: [女娲造人, 泥人, 创造生命, 陪伴, 人类起源, 黄土, 善良, 家园]
+core_idea: 生命和陪伴让世界更温暖，每个人都值得被珍惜。
+child_friendly_takeaway: 孩子可以理解每个人都独一无二，也能用双手创造温暖的小世界。
+values: [珍惜生命, 陪伴, 创造, 平等]
+visual_motifs: [泥娃娃, 黄土, 河边, 彩云, 花草]
+usable_story_seeds: [孩子捏出不同性格的泥娃娃朋友, 主角发现每个小人都有独特颜色, 大家一起装扮温暖家园]
+avoid_direct_copy: [不要复述神造人的完整神迹, 不要写成人类等级差异, 不要制造孤独恐惧]
+safety_notes: 强调独特和平等，避免神秘或宿命化表达。
+integration_prompt: 可借鉴泥土造人、陪伴和创造意象，转化为儿童手工与友谊故事。
 ---
 
 # 👩 女娲造人

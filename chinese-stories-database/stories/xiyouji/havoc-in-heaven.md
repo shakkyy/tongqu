@@ -9,6 +9,16 @@ word_count: 920
 tags: [孙悟空, 天宫, 反抗, 如来]
 themes: [反抗, 成长, 后果]
 characters: [孙悟空, 玉帝, 如来佛祖, 二郎神]
+culture_type: classic-novel-adaptation
+rag_keywords: [西游记, 孙悟空, 大闹天宫, 规则, 自由, 蟠桃, 云端, 责任]
+core_idea: 自由和本领需要与规则、责任一起成长。
+child_friendly_takeaway: 孩子可以有好奇心和本领，也要学会尊重约定、承担后果。
+values: [责任, 规则意识, 成长, 自我管理]
+visual_motifs: [云端宫殿, 蟠桃园, 金箍棒, 祥云, 小猴]
+usable_story_seeds: [小猴学会在游乐园遵守约定, 主角把调皮本领用来帮忙, 云端运动会让大家理解规则]
+avoid_direct_copy: [不要复述大闹天宫打斗情节, 不要鼓励破坏规则, 不要描写暴力对抗天兵]
+safety_notes: 将冲突转为规则学习和承担责任，避免破坏崇拜。
+integration_prompt: 可借鉴齐天大圣的好奇与云端意象，创作规则与成长故事。
 ---
 
 # ⚡ 孙悟空大闹天宫
