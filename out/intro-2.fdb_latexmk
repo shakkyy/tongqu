@@ -1,14 +1,14 @@
 # Fdb version 4
-["xdvipdfmx"] 1776603476.65792 "/Users/xinchen/Downloads/homework-all/文化/tongqu/out/intro-2.xdv" "/Users/xinchen/Downloads/homework-all/文化/tongqu/out/intro-2.pdf" "/Users/xinchen/Downloads/homework-all/文化/tongqu/out/intro-2" 1776603480.26981 0
-  "/Users/xinchen/Downloads/homework-all/文化/tongqu/out/intro-2.xdv" 1776603476.46314 165136 2a71336a70606502e9e25eaaccad1bbe "xelatex"
+["xdvipdfmx"] 1776736872.02407 "/Users/xinchen/Downloads/homework-all/文化/tongqu/out/intro-2.xdv" "/Users/xinchen/Downloads/homework-all/文化/tongqu/out/intro-2.pdf" "/Users/xinchen/Downloads/homework-all/文化/tongqu/out/intro-2" 1776736884.1651 0
+  "/Users/xinchen/Downloads/homework-all/文化/tongqu/out/intro-2.xdv" 1776736871.93276 233792 fc7b1a03ed7d0161f5fa6fc0fb65ad8d "xelatex"
   (generated)
   "/Users/xinchen/Downloads/homework-all/文化/tongqu/out/intro-2.pdf"
   (rewritten before read)
-["xelatex"] 1776603472.67701 "intro-2.tex" "/Users/xinchen/Downloads/homework-all/文化/tongqu/out/intro-2.xdv" "intro-2" 1776603480.26489 0
-  "/Users/xinchen/Downloads/homework-all/文化/tongqu/out/intro-2.aux" 1776603476.46167 4635 ae93999ca17aa4032510a1d697f13970 "xelatex"
-  "/Users/xinchen/Downloads/homework-all/文化/tongqu/out/intro-2.nav" 1776603476.46304 2448 7be588d089761f519f1e6b237f27200b "xelatex"
-  "/Users/xinchen/Downloads/homework-all/文化/tongqu/out/intro-2.out" 1776603476.46278 337 ba2d6d79bbe0d31f2e455806c7bc5710 "xelatex"
-  "/Users/xinchen/Downloads/homework-all/文化/tongqu/out/intro-2.toc" 1776603476.46307 179 c8d1d12786cda407218172f0a38e88ce "xelatex"
+["xelatex"] 1776736870.54495 "intro-2.tex" "/Users/xinchen/Downloads/homework-all/文化/tongqu/out/intro-2.xdv" "intro-2" 1776736884.16251 0
+  "/Users/xinchen/Downloads/homework-all/文化/tongqu/out/intro-2.aux" 1776736871.93183 5145 fc57a5431da76f090de3f99e3badf121 "xelatex"
+  "/Users/xinchen/Downloads/homework-all/文化/tongqu/out/intro-2.nav" 1776736871.93269 2724 5bd38d1fcfa626703365ddf6e2c6c53a "xelatex"
+  "/Users/xinchen/Downloads/homework-all/文化/tongqu/out/intro-2.out" 1776736871.93253 337 ba2d6d79bbe0d31f2e455806c7bc5710 "xelatex"
+  "/Users/xinchen/Downloads/homework-all/文化/tongqu/out/intro-2.toc" 1776736871.93271 179 639a7265a5cfc02c96c86f10b3ffd499 "xelatex"
   "/usr/local/texlive/2025/texmf-dist/fonts/map/fontname/texfonts.map" 1577235249 3524 cb3e574dea2d1052e39280babc910dc8 ""
   "/usr/local/texlive/2025/texmf-dist/fonts/tfm/adobe/symbol/psyr.tfm" 1136768653 1408 5937f58aa508ea2cea4901c07d10f5fe ""
   "/usr/local/texlive/2025/texmf-dist/fonts/tfm/adobe/zapfding/pzdr.tfm" 1136768653 1528 f853c4d1b4e0550255e02831fdc8496f ""
@@ -323,7 +323,13 @@
   "/usr/local/texlive/2025/texmf-var/web2c/xetex/xelatex.fmt" 1758529532 5639812 c23086dee85501ec3c460104c19a8c4f ""
   "/usr/local/texlive/2025/texmf.cnf" 1741450484 577 418a7058ec8e006d8704f60ecd22c938 ""
   "collegeBeamer.sty" 1776580580.04377 15236 5cb2bd63f6516b99ddc3d5ea189c1d05 ""
-  "intro-2.tex" 1776603431.9595 31015 3679998318812cac15f2769869248564 ""
+  "image/368369e278aa308ca21ac7c220f20247.png" 1776736806.7963 2558022 6ab121bccb55f566bb462f95c8ef1d25 ""
+  "image/75bb0c054402a1119cb017611728149b.png" 1776736806.80946 978031 d7e428cac4639e64fd8cee0b332c4aa1 ""
+  "image/8ab3d20d42367a9806b02e7137740a49.png" 1776736806.81303 533153 34c27219b2f91e9245823a00cd384eb4 ""
+  "image/after.png" 1776610576.03213 3161076 e5dfc6f537a9c7f2fda20faed9c500ad ""
+  "image/background2.png" 1776666008.88523 281185 d89300c91bae1553badf437228e4a334 ""
+  "image/before.png" 1776610526.30892 2558767 4659770b83938c602956ff271666716b ""
+  "intro-2.tex" 1776736864.14693 42981 121fbc08aa2cbd36cf4c332b5b42a730 ""
   "src/BUPT-RED/background.png" 1776580493.78017 1283414 9b9bcb8963aec258cac9fcf8215cff1a ""
   "src/BUPT-RED/color-logo.png" 1776580811.57012 532390 05ab66c0b450401fd4f1ac847fa394a2 ""
   "src/BUPT-RED/trans-logo.png" 1776580811.57012 532390 05ab66c0b450401fd4f1ac847fa394a2 ""
