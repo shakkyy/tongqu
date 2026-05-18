@@ -14,7 +14,7 @@ import {
   type BookshelfEntry,
 } from "./lib/bookshelfStorage";
 import { buildKeywordsForApi, type KeywordSelectionPayload } from "./lib/keywordPayload";
-import type { CultureHit, CultureRagInfo, StoryPage, StoryStyle } from "./types";
+import type { AgentTraceEntry, CultureHit, CultureRagInfo, StoryPage, StoryStyle } from "./types";
 import { Sparkles, Wand2, Mic, Type, PenTool } from "lucide-react";
 
 const API_BASE = (import.meta as unknown as { env: Record<string, string | undefined> }).env
@@ -63,7 +63,14 @@ type StreamProgressStage = {
   id?: string;
   title?: string;
   detail?: string;
-  meta?: Record<string, unknown>;
+  meta?: {
+    agent_trace?: {
+      kind?: string;
+      title?: string;
+      detail?: string;
+    };
+    [key: string]: unknown;
+  };
 };
 
 type StorybookStreamMessage =
@@ -102,6 +109,7 @@ export default function App() {
   const [generationStageIndex, setGenerationStageIndex] = useState(0);
   const [generationElapsedSec, setGenerationElapsedSec] = useState(0);
   const [stageDetailOverrides, setStageDetailOverrides] = useState<Record<string, string>>({});
+  const [agentTrace, setAgentTrace] = useState<AgentTraceEntry[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
   const [style, setStyle] = useState<StoryStyle>("paper-cut");
   const [keywordPayload, setKeywordPayload] = useState<KeywordSelectionPayload>(() => ({
@@ -360,6 +368,7 @@ export default function App() {
     setIsGenerating(true);
     setGenerationStageIndex(0);
     setStageDetailOverrides({});
+    setAgentTrace([]);
     try {
       const sketchNote = sketchDescription.trim();
       const kw =
@@ -409,6 +418,18 @@ export default function App() {
           if (message.type === "progress") {
             const stageId = message.stage?.id;
             const stageDetail = message.stage?.detail?.trim();
+            const trace = message.stage?.meta?.agent_trace;
+            if (trace?.title || trace?.detail) {
+              setAgentTrace((prev) => [
+                ...prev.slice(-24),
+                {
+                  id: `${Date.now()}-${prev.length}`,
+                  kind: trace.kind || "info",
+                  title: trace.title || message.stage?.title || "Agent 更新",
+                  detail: trace.detail || stageDetail || "",
+                },
+              ]);
+            }
             if (stageId && stageIndexById[stageId] !== undefined) {
               const idx = stageIndexById[stageId];
               setGenerationStageIndex((prev) => Math.max(prev, idx));
@@ -717,6 +738,7 @@ export default function App() {
               generationStages={panelStages}
               generationStageIndex={generationStageIndex}
               generationElapsedSec={generationElapsedSec}
+              agentTrace={agentTrace}
               culture={cultureInfo}
               onSpeakPage={(i) => autoPlayPage(i)}
               onAddToBookshelf={canAddToShelf ? () => void handleAddToBookshelf() : undefined}

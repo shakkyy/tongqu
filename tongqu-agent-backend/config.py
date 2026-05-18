@@ -20,6 +20,10 @@ class AppConfig:
         "GEMINI_IMAGE_MODEL",
         "gemini-2.0-flash-preview-image-generation",
     )
+    IMAGE_GENERATION_CONCURRENCY: int = max(
+        1,
+        int(os.getenv("IMAGE_GENERATION_CONCURRENCY", "3")),
+    )
 
     # ========== 阿里云百炼：故事文本 + 草图理解（千问 VL）==========
     DASHSCOPE_API_KEY: str | None = os.getenv("DASHSCOPE_API_KEY")
@@ -83,8 +87,8 @@ class AppConfig:
         (os.getenv("CULTURE_RAG_EMBEDDING_LOCAL_ONLY", "1").strip().lower())
         not in {"0", "false", "no"}
     )
-    CULTURE_RAG_KEYWORD_WEIGHT: float = float(os.getenv("CULTURE_RAG_KEYWORD_WEIGHT", "0.55"))
-    CULTURE_RAG_EMBEDDING_WEIGHT: float = float(os.getenv("CULTURE_RAG_EMBEDDING_WEIGHT", "0.45"))
+    CULTURE_RAG_KEYWORD_WEIGHT: float = float(os.getenv("CULTURE_RAG_KEYWORD_WEIGHT", "0.35"))
+    CULTURE_RAG_EMBEDDING_WEIGHT: float = float(os.getenv("CULTURE_RAG_EMBEDDING_WEIGHT", "0.65"))
     CULTURE_RAG_MAX_RETURN: int = int(os.getenv("CULTURE_RAG_MAX_RETURN", "2"))
     CULTURE_RAG_RELATIVE_SCORE_DROP: float = float(
         os.getenv("CULTURE_RAG_RELATIVE_SCORE_DROP", "0.22")

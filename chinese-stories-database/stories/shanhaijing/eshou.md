@@ -6,16 +6,16 @@ category: shanhaijing
 difficulty: easy
 age_range: 5-8
 word_count: 540
-tags: [讹兽, 兔子, 说谎]
+tags: [讹兽, 说谎, 山海经神兽]
 themes: [诚实]
 characters: [讹兽]
 culture_type: shanhaijing-creature
-rag_keywords: [讹兽, 兔子, 说谎, 诚实, 小兔, 月光]
+rag_keywords: [讹兽, 说谎, 谎话, 诚实, 信任, 山海经神兽, 会说话的白兔]
 core_idea: 提炼「讹兽」中的诚实，作为儿童故事的精神内核。
 child_friendly_takeaway: 孩子可以从这个文化主题中理解诚实，并把它用在自己的生活和想象里。
 values: [诚实]
-visual_motifs: [小兔, 月光]
-usable_story_seeds: [孩子和伙伴从「讹兽」的文化意象获得灵感，解决一个温暖的小问题, 围绕小兔设计新的儿童主角和安全冒险, 把传统主题改写成友谊、亲情或合作的小故事]
+visual_motifs: [会说话的白兔, 谎话气泡, 草丛]
+usable_story_seeds: [孩子和伙伴从「讹兽」的诚实主题获得灵感，解决一个关于信任的小问题, 围绕谎话气泡设计新的儿童主角和安全冒险, 把传统主题改写成诚实沟通的小故事]
 avoid_direct_copy: [不要复述《讹兽》原始情节, 不要照搬原有人物关系和原文表达, 不要把故事写成百科介绍或课堂讲解]
 safety_notes: 保留积极寓意，弱化恐怖、死亡、惩罚、成人婚恋和暴力冲突，改写为儿童友好的表达。
 integration_prompt: 可借鉴「讹兽」的核心思想、儿童友好寓意和视觉意象，围绕用户输入重新创作，避免复述原故事。

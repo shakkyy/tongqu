@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import type { CultureRagInfo, StoryPage } from "../types";
+import type { AgentTraceEntry, CultureRagInfo, StoryPage } from "../types";
 import { exportStoryAsHtmlFile, resolveBookTitle, shareStory } from "../lib/shareAndExport";
 import {
   BookOpen,
@@ -29,6 +29,7 @@ interface StoryBookPanelProps {
   }>;
   generationStageIndex?: number;
   generationElapsedSec?: number;
+  agentTrace?: AgentTraceEntry[];
   culture?: CultureRagInfo | null;
   onSpeakPage: (index: number) => void;
   /** 当前为已生成绘本时显示，手动加入书架 */
@@ -45,6 +46,7 @@ export function StoryBookPanel({
   generationStages = [],
   generationStageIndex = 0,
   generationElapsedSec = 0,
+  agentTrace = [],
   culture,
   onSpeakPage,
   onAddToBookshelf,
@@ -56,6 +58,17 @@ export function StoryBookPanel({
   const [cultureOpen, setCultureOpen] = useState(false);
   const currentStage = generationStages[Math.min(generationStageIndex, Math.max(generationStages.length - 1, 0))];
   const stageCount = Math.max(1, generationStages.length);
+  const traceKindLabel: Record<string, string> = {
+    observe: "观察",
+    decision: "决策",
+    tool_call: "调用",
+    tool_result: "结果",
+    tool_error: "错误",
+    repair: "纠偏",
+    finish: "完成",
+    error: "异常",
+    info: "信息",
+  };
 
   const formatElapsed = (seconds: number) => {
     const mm = Math.floor(seconds / 60)
@@ -260,61 +273,91 @@ export function StoryBookPanel({
               </div>
 
               <div className="p-3 md:p-4 flex-1 min-h-0">
-                {generationStages.length > 0 ? (
-                  <div
-                    className="grid h-full min-h-0 gap-1.5"
-                    style={{ gridTemplateRows: `repeat(${stageCount}, minmax(0, 1fr))` }}
-                  >
-                    {generationStages.map((stage, idx) => {
-                      const done = idx < generationStageIndex;
-                      const active = idx === generationStageIndex;
-                      return (
-                        <div
-                          key={stage.id}
-                          className={`flex items-center gap-2.5 rounded-xl px-2.5 py-1.5 transition-colors min-h-0 ${
-                            active
-                              ? "border-2 border-[#A56E3F] bg-[#FFFDF6] opacity-90"
-                              : done
-                                ? "border-2 border-[#6B705C] bg-[rgba(107,112,92,0.06)]"
-                                : "border-2 border-dashed border-[#D1D5DB] bg-transparent"
-                          }`}
-                          style={active ? { animation: "stageBreath 2.6s ease-in-out infinite" } : undefined}
-                        >
-                          <div
-                            className={`w-5 h-5 rounded-full border-2 border-dashed flex items-center justify-center text-[10px] font-extrabold bg-paper-texture flex-shrink-0 ${
-                              active
-                                ? "border-[#A56E3F] text-[#7C4E2B] bg-[#F9EEDB]"
-                                : done
-                                  ? "border-[#6B705C] text-[#3F4638] bg-[rgba(107,112,92,0.12)]"
-                                  : "border-cn-ink/35 text-cn-ink/45 bg-cn-paper/70"
-                            }`}
-                            style={{ transform: idx % 2 === 0 ? "rotate(-2deg)" : "rotate(2deg)" }}
-                          >
-                            {done ? "✓" : idx + 1}
-                          </div>
-                          <div className="min-w-0">
-                            <p
-                              className={`text-[12.5px] font-semibold tracking-[0.01em] leading-snug ${
-                                active ? "text-[#6B4429]" : done ? "text-[#3F4638]" : "text-cn-ink/65"
+                <div className="grid h-full min-h-0 gap-3 md:grid-cols-[minmax(0,0.92fr)_minmax(220px,1.08fr)]">
+                  <div className="min-h-0">
+                    {generationStages.length > 0 ? (
+                      <div
+                        className="grid h-full min-h-0 gap-1.5"
+                        style={{ gridTemplateRows: `repeat(${stageCount}, minmax(0, 1fr))` }}
+                      >
+                        {generationStages.map((stage, idx) => {
+                          const done = idx < generationStageIndex;
+                          const active = idx === generationStageIndex;
+                          return (
+                            <div
+                              key={stage.id}
+                              className={`flex items-center gap-2.5 rounded-xl px-2.5 py-1.5 transition-colors min-h-0 ${
+                                active
+                                  ? "border-2 border-[#A56E3F] bg-[#FFFDF6] opacity-90"
+                                  : done
+                                    ? "border-2 border-[#6B705C] bg-[rgba(107,112,92,0.06)]"
+                                    : "border-2 border-dashed border-[#D1D5DB] bg-transparent"
                               }`}
+                              style={active ? { animation: "stageBreath 2.6s ease-in-out infinite" } : undefined}
                             >
-                              {stage.title}
-                            </p>
-                            <p
-                              className={`text-[11px] font-medium leading-snug mt-0.5 line-clamp-2 ${
-                                active ? "text-[#6B4429]/80" : done ? "text-[#3F4638]/80" : "text-cn-ink/50"
-                              }`}
-                            >
-                              {stage.detail}
-                            </p>
-                          </div>
-                        </div>
-                      );
-                    })}
+                              <div
+                                className={`w-5 h-5 rounded-full border-2 border-dashed flex items-center justify-center text-[10px] font-extrabold bg-paper-texture flex-shrink-0 ${
+                                  active
+                                    ? "border-[#A56E3F] text-[#7C4E2B] bg-[#F9EEDB]"
+                                    : done
+                                      ? "border-[#6B705C] text-[#3F4638] bg-[rgba(107,112,92,0.12)]"
+                                      : "border-cn-ink/35 text-cn-ink/45 bg-cn-paper/70"
+                                }`}
+                                style={{ transform: idx % 2 === 0 ? "rotate(-2deg)" : "rotate(2deg)" }}
+                              >
+                                {done ? "✓" : idx + 1}
+                              </div>
+                              <div className="min-w-0">
+                                <p
+                                  className={`text-[12.5px] font-semibold tracking-[0.01em] leading-snug ${
+                                    active ? "text-[#6B4429]" : done ? "text-[#3F4638]" : "text-cn-ink/65"
+                                  }`}
+                                >
+                                  {stage.title}
+                                </p>
+                                <p
+                                  className={`text-[11px] font-medium leading-snug mt-0.5 line-clamp-2 ${
+                                    active ? "text-[#6B4429]/80" : done ? "text-[#3F4638]/80" : "text-cn-ink/50"
+                                  }`}
+                                >
+                                  {stage.detail}
+                                </p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-sm font-semibold text-cn-ink/75 text-center py-2">{progressText}</p>
+                    )}
                   </div>
-                ) : (
-                  <p className="text-sm font-semibold text-cn-ink/75 text-center py-2">{progressText}</p>
-                )}
+
+                  <div className="min-h-0 rounded-xl border-2 border-[#A56E3F]/70 bg-white/70 overflow-hidden flex flex-col">
+                    <div className="px-3 py-2 border-b border-[#A56E3F]/25 bg-[#FFF8E8] flex-shrink-0">
+                      <p className="text-[12px] font-black text-[#6B4429]">中枢 Agent 执行摘要</p>
+                      <p className="text-[10px] font-semibold text-cn-ink/55">观察、决策、工具调用与纠偏会实时显示在这里</p>
+                    </div>
+                    <div className="flex-1 min-h-0 overflow-y-auto hide-scrollbar px-3 py-2 space-y-2">
+                      {agentTrace.length > 0 ? (
+                        agentTrace.map((entry) => (
+                          <div key={entry.id} className="border-l-2 border-[#A56E3F] pl-2">
+                            <div className="flex items-center gap-1.5">
+                              <span className="rounded-full bg-[#F3E7CF] border border-[#A56E3F]/40 px-1.5 py-0.5 text-[9px] font-black text-[#6B4429]">
+                                {traceKindLabel[entry.kind] ?? entry.kind}
+                              </span>
+                              <p className="text-[11px] font-extrabold text-cn-ink truncate">{entry.title}</p>
+                            </div>
+                            <p className="mt-1 text-[10.5px] leading-snug text-cn-ink/70">{entry.detail}</p>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-[11px] leading-relaxed text-cn-ink/45">
+                          等待中枢 Agent 完成输入理解。日志会随着生成过程逐条出现。
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
             <style>{`

@@ -46,6 +46,52 @@ FIELD_WEIGHTS = {
     "category": 0.15,
 }
 
+INTENT_GROUPS = {
+    "family_reunion": {
+        "query_terms": {
+            "想家",
+            "思乡",
+            "思念",
+            "妈妈",
+            "母亲",
+            "家人",
+            "团圆",
+            "月亮",
+            "圆月",
+            "中秋",
+            "小兔",
+            "玉兔",
+        },
+        "doc_terms": {
+            "想家",
+            "思乡",
+            "思念",
+            "亲情",
+            "母爱",
+            "妈妈",
+            "母亲",
+            "家人",
+            "团圆",
+            "中秋",
+            "中秋节",
+            "月亮",
+            "圆月",
+            "玉兔",
+            "月饼",
+            "桂花",
+            "陪伴",
+        },
+    },
+    "honesty": {
+        "query_terms": {"诚实", "说谎", "撒谎", "谎话", "信任", "真假", "欺骗"},
+        "doc_terms": {"诚实", "说谎", "撒谎", "谎话", "信任", "真假", "欺骗"},
+    },
+    "duanwu": {
+        "query_terms": {"端午", "龙舟", "香包", "香囊", "粽子", "艾草", "五彩绳"},
+        "doc_terms": {"端午", "端午节", "龙舟", "香包", "香囊", "粽子", "艾草", "五彩绳"},
+    },
+}
+
 
 @dataclass
 class CultureHit:
@@ -208,6 +254,10 @@ def _cosine(a: list[float] | None, b: list[float] | None) -> float:
     return max(0.0, sum(x * y for x, y in zip(a, b)) / denom)
 
 
+def _contains_any(text: str, terms: set[str]) -> bool:
+    return any(term and term in text for term in terms)
+
+
 class CultureRagService:
     def __init__(
         self,
@@ -323,6 +373,28 @@ class CultureRagService:
         score = min(1.0, weighted / 8.0 + overlap * 0.25)
         return score, exact_hits
 
+    def _intent_score_multiplier(self, q: str, doc: CultureDocument, exact_hits: int) -> float:
+        doc_text = doc.search_text
+        active_groups = [
+            group
+            for group in INTENT_GROUPS.values()
+            if _contains_any(q, group["query_terms"])
+        ]
+        if not active_groups:
+            return 1.0
+
+        matched_groups = [
+            group
+            for group in active_groups
+            if _contains_any(doc_text, group["doc_terms"])
+        ]
+        if matched_groups:
+            return 1.0
+
+        # 只靠“小兔/月光”等外形或场景词命中，但主题与用户意图不一致时，强降权。
+        # 例如“月亮上的小兔想妈妈”不应因为兔子外形误召回“讹兽/诚实”。
+        return 0.42 if exact_hits else 0.32
+
     def retrieve(self, query: str, top_k: int = 3) -> list[CultureHit]:
         q = (query or "").strip().lower()
         if not q:
@@ -353,6 +425,7 @@ class CultureRagService:
             )
             if exact_hits == 0 and keyword_score < 0.25:
                 score *= 0.82
+            score *= self._intent_score_multiplier(q, doc, exact_hits)
             if score < self.min_score:
                 continue
             meta = doc.meta

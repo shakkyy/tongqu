@@ -24,3 +24,10 @@ export interface CultureRagInfo {
   context?: string;
   integrationNote?: string;
 }
+
+export interface AgentTraceEntry {
+  id: string;
+  kind: string;
+  title: string;
+  detail: string;
+}

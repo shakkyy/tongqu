@@ -34,13 +34,13 @@ _REACT_SYSTEM_PROMPT = """你是「童趣绘梦」的儿童绘本主理人，负
 **标准作业流程（SOP）——须严格遵守：**
 1. 若工作区标明「用户带有草图图片」，必须先调用 `analyze_sketch` 获取画面语义；若无草图，可跳过此步。
 2. 调用 `retrieve_culture`：基于 safe_keywords、sketch_text 与（若有）visual_semantics 检索文化语料，取得 culture_context。
-3. 调用 `draft_story`：结合工作区中的「用于写故事的核心素材 safe_keywords」、（若有）视觉语义与 culture_context，生成标题、大纲、人物脚本、价值观与完整故事正文（150–250 字）。
+3. 调用 `draft_story`：结合工作区中的「用于写故事的核心素材 safe_keywords」、（若有）视觉语义与 culture_context，生成标题、大纲、人物脚本、价值观与完整故事正文（ 600-800 字）。
 4. 调用 `review_safety`：对故事正文做自我审查（BERT 位点）。若结果不安全或高风险，**不要**继续分镜，应再次调用 `draft_story` 改写后再调用 `review_safety`。
-5. 仅在审查通过后，调用 `generate_storyboard`：将故事切分为 3～4 个分镜，每镜含中文旁白与**纯英文** image_prompt，并保持角色视觉锚点一致。
+5. 仅在审查通过后，调用 `generate_storyboard`：将故事切分为 8-10 个分镜，每镜含中文旁白与**纯英文** image_prompt，并保持角色视觉锚点一致。
 6. 当你确认分镜合理且已通过安全审查时，调用 `finish_creation` 传入 `title`、`story_body_zh` 与 `scenes` 列表以**结束**整个创作流程。
 
 **重要约束：**
-- 面向 3～10 岁儿童，积极正向；不得输出违法、暴力、色情、恐怖或歧视内容。
+- 面向 4～10 岁儿童，积极正向；不得输出违法、暴力、色情、恐怖或歧视内容。
 - 最终必须由 `finish_creation` 收尾；不要在没有调用 `finish_creation` 的情况下声称工作已完成。
 - 若某工具返回含 error 字段的 JSON，请阅读说明并修正参数或重试。
 """
@@ -518,6 +518,33 @@ class TongquAgent:
             stage["meta"] = meta
         await reporter(stage)
 
+    async def _emit_agent_trace(
+        self,
+        reporter: ProgressReporter | None,
+        *,
+        kind: str,
+        title: str,
+        detail: str,
+        **meta: Any,
+    ) -> None:
+        if reporter is None:
+            return
+        await reporter(
+            {
+                "id": "agent_trace",
+                "title": title,
+                "detail": detail,
+                "meta": {
+                    "agent_trace": {
+                        "kind": kind,
+                        "title": title,
+                        "detail": detail,
+                        **meta,
+                    }
+                },
+            }
+        )
+
     async def run(
         self,
         *,
@@ -566,9 +593,29 @@ class TongquAgent:
             "中枢 Agent 编排",
             "正在进行素材整理与安全预处理",
         )
+        await self._emit_agent_trace(
+            on_progress,
+            kind="observe",
+            title="理解输入",
+            detail=f"收到 {src.value} 模式素材，准备先做安全过滤，再进入文化检索与故事编排。",
+            creation_source=src.value,
+            has_sketch=bool((sketch_image_base64 or "").strip()),
+        )
         baseline = self._baseline_material_for_filter(keywords, sketch_text)
         filtered = await self._story.safety_middleware.filter_input(baseline)
         safe_keywords = filtered["sanitized_keywords"]
+        await self._emit_agent_trace(
+            on_progress,
+            kind="decision",
+            title="安全预处理完成",
+            detail=(
+                "输入素材可继续创作。"
+                if not filtered["blocked"]
+                else "输入命中敏感项，已使用安全改写后的素材继续。"
+            ),
+            hits=filtered["hits"],
+            safe_keywords=safe_keywords[:240],
+        )
 
         enhancer_enabled, enhancement, material_for_llm = self._build_enhancement_for_react(
             safe_keywords,
@@ -594,6 +641,17 @@ class TongquAgent:
             if part
         )
         self._retrieve_culture_for_query(culture_query)
+        await self._emit_agent_trace(
+            on_progress,
+            kind="tool_result",
+            title="文化检索结果",
+            detail=(
+                "命中：" + "、".join(hit.title for hit in self._ctx_culture_hits)
+                if self._ctx_culture_hits
+                else "没有高相关文化条目，本轮不会强行注入传统故事。"
+            ),
+            culture_hits=[hit.to_public_dict() for hit in self._ctx_culture_hits],
+        )
 
         workspace = {
             "style_slug": style,
@@ -635,6 +693,13 @@ class TongquAgent:
                 msg = resp.choices[0].message
 
                 if not getattr(msg, "tool_calls", None):
+                    await self._emit_agent_trace(
+                        on_progress,
+                        kind="repair",
+                        title="中枢自我纠偏",
+                        detail="模型没有调用工具，系统已提醒它必须按 analyze/retrieve/draft/review/board/finish 的工具链继续。",
+                        turn=step,
+                    )
                     messages.append(_assistant_message_to_dict(msg))
                     messages.append(
                         {
@@ -648,6 +713,20 @@ class TongquAgent:
 
                 for tc in msg.tool_calls:
                     name = tc.function.name
+                    await self._emit_agent_trace(
+                        on_progress,
+                        kind="tool_call",
+                        title=f"调用工具：{name}",
+                        detail={
+                            "analyze_sketch": "先理解草图里的角色、场景和动作，再把视觉语义补进故事素材。",
+                            "retrieve_culture": "根据安全素材和草图语义检索传统文化条目，提取可儿童化改写的核心思想。",
+                            "draft_story": "把用户素材、草图语义和文化参考交给故事策划工具，生成标题、正文和价值观。",
+                            "review_safety": "对故事正文做儿童安全初审，不通过则要求重新改写。",
+                            "generate_storyboard": "把故事拆成分镜，并生成每页英文生图提示词。",
+                            "finish_creation": "确认结构化成稿，准备进入配图和语音合成流水线。",
+                        }.get(name, "执行中枢选择的工具。"),
+                        turn=step,
+                    )
                     if name == "analyze_sketch":
                         await self._emit_progress(
                             on_progress,
@@ -693,6 +772,47 @@ class TongquAgent:
                         )
                     raw_args = tc.function.arguments or "{}"
                     body, fin = await self._dispatch_tool(name, raw_args)
+                    try:
+                        tool_payload = json.loads(body)
+                    except json.JSONDecodeError:
+                        tool_payload = {}
+                    if isinstance(tool_payload, dict) and "error" in tool_payload:
+                        await self._emit_agent_trace(
+                            on_progress,
+                            kind="tool_error",
+                            title=f"工具返回错误：{name}",
+                            detail=f"{tool_payload.get('error')}：{tool_payload.get('detail', '等待中枢根据错误信息修正参数后重试。')}",
+                            turn=step,
+                        )
+                    else:
+                        summary = {
+                            "analyze_sketch": (
+                                "草图理解完成。"
+                                if tool_payload.get("vl_used")
+                                else "未使用草图视觉理解，可继续文本创作。"
+                            ),
+                            "retrieve_culture": (
+                                "文化检索完成："
+                                + "、".join(hit.get("title", "") for hit in tool_payload.get("hits", [])[:3])
+                                if tool_payload.get("used")
+                                else "文化检索完成：没有高相关命中。"
+                            ),
+                            "draft_story": f"故事草案完成：{tool_payload.get('title_zh', '未命名')}。",
+                            "review_safety": (
+                                "安全初审通过，可以进入分镜。"
+                                if tool_payload.get("safe_for_storyboard")
+                                else "安全初审未通过，中枢会要求重新改写故事。"
+                            ),
+                            "generate_storyboard": f"分镜生成完成，共 {tool_payload.get('count', 0)} 页。",
+                            "finish_creation": "结构化成稿已确认，进入插图与朗读制作。",
+                        }.get(name, "工具执行完成。")
+                        await self._emit_agent_trace(
+                            on_progress,
+                            kind="tool_result",
+                            title=f"工具结果：{name}",
+                            detail=summary,
+                            turn=step,
+                        )
                     messages.append(
                         {
                             "role": "tool",
@@ -779,6 +899,14 @@ class TongquAgent:
             )
 
         title, story_text, scenes = finished
+        await self._emit_agent_trace(
+            on_progress,
+            kind="decision",
+            title="进入成书流水线",
+            detail=f"中枢已得到《{title}》和 {len(scenes)} 个分镜，开始并行配图、合成朗读与最终安全复核。",
+            title_zh=title,
+            scene_count=len(scenes),
+        )
 
         result = await self._story.finalize_from_structured(
             style=style,
@@ -790,6 +918,16 @@ class TongquAgent:
             enhancement=enhancement,
             enhancer_enabled=enhancer_enabled,
             on_progress=on_progress,
+        )
+        await self._emit_agent_trace(
+            on_progress,
+            kind="finish" if result.get("ok") else "error",
+            title="成书完成" if result.get("ok") else "成书失败",
+            detail=(
+                f"绘本《{result.get('title', title)}》已生成，包含 {len(result.get('scenes', []))} 页。"
+                if result.get("ok")
+                else str(result.get("detail") or result.get("error") or "流水线返回失败")
+            ),
         )
 
         return self._merge_agent_fields(

@@ -174,6 +174,14 @@ class CultureRagTests(unittest.TestCase):
         self.assertTrue(any("嫦娥" in hit.title or "中秋" in " ".join(hit.visual_motifs) for hit in hits))
         self.assertIn("团圆", CultureRagService(CORPUS, embedding_enabled=False).build_culture_context(hits))
 
+    def test_moon_rabbit_missing_mom_does_not_retrieve_eshou(self) -> None:
+        hits = CultureRagService(CORPUS, embedding_enabled=False).retrieve(
+            "我想画一个小兔子在月亮上想妈妈的故事",
+            top_k=3,
+        )
+        self.assertTrue(any("嫦娥" in hit.title or "静夜思" in hit.title for hit in hits))
+        self.assertFalse(any(hit.id == "eshou" or hit.title == "讹兽" for hit in hits))
+
     def test_dragon_boat_sachet_river_retrieves_duanwu(self) -> None:
         hits = CultureRagService(CORPUS, embedding_enabled=False).retrieve("龙舟、香包、河边", top_k=3)
         self.assertTrue(any("端午" in hit.integration_prompt or "龙舟" in hit.visual_motifs for hit in hits))

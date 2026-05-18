@@ -357,41 +357,6 @@
     \end{columns}
 \end{frame}
 
-% --- 中国风故事数据库：实现思路（数据标注与工程化） ---
-\begin{frame}[t]{中国风故事数据库}
-    \vspace{-0.05cm}
-    \footnotesize
-    建设面向\textbf{儿童绘本 AI}的中国传统故事\textbf{素材库}，支撑\textbf{数字化传承}与\textbf{创新应用}；与 Agent System相结合，提供\textbf{语料支持}与后续\textbf{检索召回}接口。
-    \goldrule
-    \vspace{0.08cm}
-    \begin{columns}[T, onlytextwidth]
-        \begin{column}[T]{0.48\linewidth}
-            \sidehead{核心元数据}
-            \scriptsize
-            统一标注字段，覆盖\textbf{难度、适龄、主题、人物}等，便于筛选适龄内容、主题对齐与角色一致性校验。
-            \vspace{0.32cm}
-
-            \sidehead[accentgold]{工程化流程}
-            \scriptsize
-            \redot \textbf{Markdown} 纯文本承载正文与结构\\[2pt]
-            \redot 人工收集相关故事，改写并标注
-        \end{column}
-        \begin{column}[T]{0.04\linewidth}
-            \centering\textcolor{accentgold!60}{\rule{0.4pt}{5.4em}}
-        \end{column}
-        \begin{column}[T]{0.48\linewidth}
-            \sidehead[accentgold]{文化主题网络}
-            \scriptsize
-            从\textbf{创世神话}到\textbf{历史典故}，按传统文化知识块组织，形成可浏览、可扩展的\textbf{主题网络}。
-            \vspace{0.32cm}
-
-            \sidehead{在系统中的位置}
-            \scriptsize
-            仓库 \texttt{chinese-stories-database/}；当前以\textbf{离线语料}为主。
-        \end{column}
-    \end{columns}
-\end{frame}
-
 % --- Sandboxed MAS：中枢分发 + 子 Agent 协作 + Skills 可插拔 ---
 \begin{frame}[t]{Sandboxed Multi-Agents System}
     \vspace{-0.22cm}
@@ -457,6 +422,41 @@
             \sidehead[accentgold]{协作方式}
             \scriptsize
             中枢Agent维护\textbf{会话沙箱}与任务边界，向子 Agent \textbf{分发子任务}；子 Agent 通过\textbf{消息与共享}协同推进，必要时\textbf{串行 / 并行}；最终由中枢\textbf{汇总}后进入成书与安全链路。
+        \end{column}
+    \end{columns}
+\end{frame}
+
+% --- 中国风故事数据库：实现思路（数据标注与工程化） ---
+\begin{frame}[t]{中国风故事数据库}
+    \vspace{-0.05cm}
+    \footnotesize
+    建设面向\textbf{儿童绘本 AI}的中国传统故事\textbf{素材库}，支撑\textbf{数字化传承}与\textbf{创新应用}；与 Agent System相结合，提供\textbf{语料支持}与后续\textbf{检索召回}接口。
+    \goldrule
+    \vspace{0.08cm}
+    \begin{columns}[T, onlytextwidth]
+        \begin{column}[T]{0.48\linewidth}
+            \sidehead{核心元数据}
+            \scriptsize
+            统一标注字段，覆盖\textbf{难度、适龄、主题、人物}等，便于筛选适龄内容、主题对齐与角色一致性校验。
+            \vspace{0.32cm}
+
+            \sidehead[accentgold]{工程化流程}
+            \scriptsize
+            \redot \textbf{Markdown} 纯文本承载正文与结构\\[2pt]
+            \redot 人工收集相关故事，改写并标注
+        \end{column}
+        \begin{column}[T]{0.04\linewidth}
+            \centering\textcolor{accentgold!60}{\rule{0.4pt}{5.4em}}
+        \end{column}
+        \begin{column}[T]{0.48\linewidth}
+            \sidehead[accentgold]{文化主题网络}
+            \scriptsize
+            从\textbf{创世神话}到\textbf{历史典故}，按传统文化知识块组织，形成可浏览、可扩展的\textbf{主题网络}。
+            \vspace{0.32cm}
+
+            \sidehead{在系统中的位置}
+            \scriptsize
+            仓库 \texttt{chinese-stories-database/}；当前以\textbf{离线语料}为主。
         \end{column}
     \end{columns}
 \end{frame}

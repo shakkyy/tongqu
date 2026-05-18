@@ -457,20 +457,43 @@ class StorybookPipeline:
 
             raise RuntimeError("图片生成异常终止")
 
-        urls: List[str] = []
-        for idx, scene in enumerate(scenes):
-            if idx > 0:
-                await asyncio.sleep(0.9)
-            await self._emit_progress(
-                on_progress,
-                "image",
-                "绘制插画场景",
-                f"插图生成中（{idx + 1}/{len(scenes)}）",
-                current=idx + 1,
-                total=len(scenes),
-            )
-            urls.append(await _task(scene))
-        return urls
+        total = len(scenes)
+        if total == 0:
+            return []
+
+        concurrency = max(1, min(CONFIG.IMAGE_GENERATION_CONCURRENCY, total))
+        semaphore = asyncio.Semaphore(concurrency)
+        completed = 0
+
+        async def _run_one(idx: int, scene: Scene) -> tuple[int, str]:
+            nonlocal completed
+            async with semaphore:
+                await self._emit_progress(
+                    on_progress,
+                    "image",
+                    "绘制插画场景",
+                    f"插图生成中（场景 {idx + 1}/{total}，并发 {concurrency}）",
+                    current=idx + 1,
+                    total=total,
+                    concurrency=concurrency,
+                )
+                url = await _task(scene)
+                completed += 1
+                await self._emit_progress(
+                    on_progress,
+                    "image",
+                    "绘制插画场景",
+                    f"插图已完成（{completed}/{total}）",
+                    current=completed,
+                    total=total,
+                    concurrency=concurrency,
+                )
+                return idx, url
+
+        pairs = await asyncio.gather(
+            *[_run_one(idx, scene) for idx, scene in enumerate(scenes)]
+        )
+        return [url for _, url in sorted(pairs, key=lambda item: item[0])]
 
     async def _synthesize_all_scenes(
         self,
