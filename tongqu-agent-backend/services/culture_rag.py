@@ -92,6 +92,31 @@ INTENT_GROUPS = {
     },
 }
 
+MYTHIC_SOLAR_TERMS = {"后羿", "射日", "夸父", "追日", "十日", "金乌", "旱灾", "英雄"}
+PLAYFUL_FOOD_FANTASY_TERMS = {
+    "西瓜",
+    "瓜田",
+    "果汁",
+    "汁水",
+    "大嘴巴",
+    "乌鸦",
+    "逃跑",
+    "咕噜",
+    "好吃",
+}
+CULTURE_REQUEST_TERMS = {
+    "传统",
+    "文化",
+    "神话",
+    "节日",
+    "习俗",
+    "民俗",
+    "中秋",
+    "端午",
+    "春节",
+    "元宵",
+}
+
 
 @dataclass
 class CultureHit:
@@ -395,6 +420,18 @@ class CultureRagService:
         # 例如“月亮上的小兔想妈妈”不应因为兔子外形误召回“讹兽/诚实”。
         return 0.42 if exact_hits else 0.32
 
+    def _domain_score_multiplier(self, q: str, doc: CultureDocument, exact_hits: int) -> float:
+        doc_text = doc.search_text
+        if _contains_any(q, PLAYFUL_FOOD_FANTASY_TERMS) and not _contains_any(q, CULTURE_REQUEST_TERMS):
+            if not _contains_any(doc_text, PLAYFUL_FOOD_FANTASY_TERMS):
+                return 0.12
+        if _contains_any(q, PLAYFUL_FOOD_FANTASY_TERMS) and _contains_any(doc_text, MYTHIC_SOLAR_TERMS):
+            solar_query = _contains_any(q, {"太阳", "天上", "日"})
+            mythic_query = _contains_any(q, MYTHIC_SOLAR_TERMS)
+            if solar_query and not mythic_query:
+                return 0.18
+        return 1.0
+
     def retrieve(self, query: str, top_k: int = 3) -> list[CultureHit]:
         q = (query or "").strip().lower()
         if not q:
@@ -426,6 +463,7 @@ class CultureRagService:
             if exact_hits == 0 and keyword_score < 0.25:
                 score *= 0.82
             score *= self._intent_score_multiplier(q, doc, exact_hits)
+            score *= self._domain_score_multiplier(q, doc, exact_hits)
             if score < self.min_score:
                 continue
             meta = doc.meta
@@ -489,5 +527,5 @@ class CultureRagService:
         )
         return (
             f"本次参考了「{titles}」的核心思想与视觉意象"
-            f"{'：' + ideas if ideas else ''}。创作时仅作为灵感约束，围绕用户输入重新设计角色、情节与分镜，避免直接复述原始故事。"
+            f"{'：' + ideas if ideas else ''}。"
         )

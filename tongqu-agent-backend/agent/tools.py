@@ -61,6 +61,12 @@ class StoryPlanningArgs(BaseModel):
     )
 
 
+class StoryboardSceneSpec(BaseModel):
+    scene_no: int = Field(..., ge=1)
+    text_zh: str = Field(..., description="该页旁白（中文）")
+    image_prompt_en: str = Field(..., description="纯英文生图提示词")
+
+
 class StoryPlanningResult(BaseModel):
     title_zh: str
     outline_zh: str = Field(..., description="分幕式大纲，供分镜工具切分参考")
@@ -76,17 +82,14 @@ class StoryPlanningResult(BaseModel):
     )
     story_body_zh: str = Field(
         ...,
-        description="150–250 字完整故事正文",
+        description="650–900 字完整故事正文，适合切成 8-10 页绘本",
     )
-
-
-# ---------------------------------------------------------------------------
-# storyboard_generation_tool
-# ---------------------------------------------------------------------------
-class StoryboardSceneSpec(BaseModel):
-    scene_no: int = Field(..., ge=1)
-    text_zh: str = Field(..., description="该页旁白（中文）")
-    image_prompt_en: str = Field(..., description="纯英文生图提示词")
+    scenes: list[StoryboardSceneSpec] = Field(
+        ...,
+        min_length=8,
+        max_length=10,
+        description="8-10 个连续绘本页面，含中文旁白与英文生图提示词",
+    )
 
 
 class StoryboardGenerationArgs(BaseModel):
@@ -97,7 +100,7 @@ class StoryboardGenerationArgs(BaseModel):
 
 
 class StoryboardGenerationResult(BaseModel):
-    scenes: list[StoryboardSceneSpec] = Field(..., min_length=3, max_length=4)
+    scenes: list[StoryboardSceneSpec] = Field(..., min_length=8, max_length=10)
 
 
 # ---------------------------------------------------------------------------
@@ -134,6 +137,36 @@ def parse_llm_json_object(raw: str) -> dict[str, Any]:
         if start >= 0 and end > start:
             return json.loads(cleaned[start : end + 1])
         raise
+
+
+def _coerce_text(value: Any) -> str:
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list):
+        parts: list[str] = []
+        for item in value:
+            if isinstance(item, str):
+                parts.append(item)
+            elif isinstance(item, dict):
+                parts.append(
+                    "：".join(str(v) for v in item.values() if v is not None)
+                )
+            elif item is not None:
+                parts.append(str(item))
+        return "\n".join(part.strip() for part in parts if part and part.strip())
+    if isinstance(value, dict):
+        return "\n".join(
+            f"{k}：{v}" for k, v in value.items() if v is not None
+        )
+    return "" if value is None else str(value)
+
+
+def normalize_story_planning_payload(data: dict[str, Any]) -> dict[str, Any]:
+    """容错模型 JSON：大纲/正文偶尔会返回数组或对象，这里收敛成 schema 需要的字符串。"""
+    out = dict(data)
+    out["outline_zh"] = _coerce_text(out.get("outline_zh"))
+    out["story_body_zh"] = _coerce_text(out.get("story_body_zh"))
+    return out
 
 
 def _style_prompt_fragment(style_cn: str) -> str:
@@ -178,17 +211,27 @@ def build_story_planning_prompt(
 
 输出字段与要求：
 1) title_zh: 故事标题（中文），简短有童趣。
-2) outline_zh: 分幕式故事大纲（中文），覆盖起承转合，便于后续切成 3-4 页。
+2) outline_zh: 分页式故事大纲（中文），必须包含 8-10 个连续故事节拍，便于后续切成 8-10 页。
 3) character_script: 数组，至少 1 条。每项含：
    - role: 角色定位（如 主角 / 配角）
    - name: 角色名（中文）
    - appearance_anchor_en: **英文**固定外观描述（如年龄、服饰颜色、发型），供生图复用
    - traits_zh: 性格特点（中文，短）
 4) positive_values: 字符串数组，列出本故事要体现的正向价值观（如 勇敢、友谊、合作）。
-5) story_body_zh: **完整故事正文**（中文），**150–250 个汉字**，与 outline_zh 一致、叙事连贯有结局。
+5) story_body_zh: **完整故事正文**（中文），**650–900 个汉字**，与 outline_zh 一致、叙事连贯有结局。
+6) scenes: 数组，**8-10 条**，直接完成分镜拆页。每项含：
+   - scene_no: 从 1 递增
+   - text_zh: 该页中文旁白（约 55-90 字），所有页面要串成一个连续的故事，不能各写各的
+   - image_prompt_en: **纯英文**生图提示词，只描述画面可见内容；必须包含 "no text, no letters, no watermark, no logo"
 
 语言要求：
-- 必须像 3-10 岁儿童绘本，句子短、意思直接、画面清楚。
+- 必须像 4-10 岁儿童绘本，句子短、意思直接、画面清楚。
+- 故事要像一本真正的 8-10 页绘本：每一页推进一个小动作或小发现，前后因果清楚，不要把几个互不相干的片段拼在一起。
+- 主角、重要配角和关键道具要稳定出现；不要一会儿换设定、一会儿换目标。
+- 每页可承载 55-90 字旁白，因此正文要有足够细节：动作、场景、对话、情绪变化都要具体。
+- scenes 必须从 story_body_zh 中自然切分，不要新增与正文矛盾的情节。
+- image_prompt_en 必须保持角色一致：主角每页复用同一段 appearance_anchor_en；重要配角和关键道具出现时也复用固定特征。
+- image_prompt_en 要体现页面连续性：同一地点、同一道具、同一角色不要突然改变外观。
 - 少用成语、古风词和成人文学化表达；避免“月华、窗棂、笑靥、刹那、银辉”等孩子不易理解的词。
 - 每个关键情节要让孩子能明白：谁在做什么、为什么做、结果怎样。
 - 温暖但不要晦涩，不要把故事写成散文诗。
@@ -226,16 +269,17 @@ def build_storyboard_prompt(
 
 你是儿童绘本主理人中的「分镜导演」角色。只输出一个 JSON 对象，不要 Markdown、不要解释。
 
-任务：将给定故事正文 **切分为 3-4 个分镜**，每镜一段旁白；并为每镜写 **纯英文** 的 image_prompt。
+任务：将给定故事正文 **切分为 8-10 个连续绘本页面**，每页一段旁白；并为每页写 **纯英文** 的 image_prompt。
 
 硬性规则：
-1) scenes 数组长度必须为 3 或 4。
+1) scenes 数组长度必须为 8 到 10。
 2) 每个 scene：
    - scene_no: 从 1 递增
-   - text_zh: 该页中文旁白（约 30-50 字），全部来自或紧密改编自 story_body_zh，四镜合起来覆盖完整故事；语言必须简单直白，适合孩子朗读，避免“月华、窗棂、笑靥、刹那、银辉”等生僻或成人文学化词语。
+   - text_zh: 该页中文旁白（约 55-90 字），全部来自或紧密改编自 story_body_zh，所有页面合起来覆盖完整故事；每一页都要承接上一页、推进下一页，不能各写各的；语言必须简单直白，适合孩子朗读，避免“月华、窗棂、笑靥、刹那、银辉”等生僻或成人文学化词语。
    - image_prompt_en: **必须全英文**；**不要叙事动作**（禁止 decided to / felt 等），只描述定格画面可见内容。
    - 结构建议：[Main Subject & Appearance] + [Action/Pose] + [Environment] + [Lighting/Atmosphere]
-   - **角色一致性**：将 character_script 中每条 appearance_anchor_en **原样嵌入**每个场景的 image_prompt_en（可微调语序但特征词保持一致）。
+   - **角色一致性**：将 character_script 中每条 appearance_anchor_en **原样嵌入**每个相关场景的 image_prompt_en（主角每页必须出现并复用原锚点；重要配角出现时也复用原锚点）。不要改变主角的颜色、服饰、年龄、发型、物种或关键道具。
+   - **连续性**：image_prompt_en 要保留上一页留下的重要物件和空间关系，例如同一只灯笼、同一封信、同一条河岸；不要突然换成无关场景。
 3) 风格：{style_cn}；在英文 prompt 中加入与该风格匹配的修饰词（参考系统提示中的风格表）。
 
 【大纲参考】
@@ -306,6 +350,7 @@ class TongquToolHandlers:
         )
         raw = await self._pipeline.llm_client.generate(prompt)
         data = parse_llm_json_object(raw)
+        data = normalize_story_planning_payload(data)
         return StoryPlanningResult.model_validate(data)
 
     async def storyboard_generation_tool(

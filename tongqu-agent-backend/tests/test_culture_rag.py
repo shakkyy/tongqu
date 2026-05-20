@@ -41,6 +41,21 @@ class FakeTtsClient:
         return "https://example.test/audio.mp3"
 
 
+def make_fake_scenes() -> list[dict[str, object]]:
+    return [
+        {
+            "scene_no": idx,
+            "text_zh": f"第{idx}页，安安和小兔沿着月光小路继续寻找家的方向。",
+            "image_prompt_en": (
+                "a 6-year-old Chinese child wearing a green jacket, a small white rabbit, "
+                f"page {idx} moonlit path, traditional Chinese ink wash painting, "
+                "no text, no letters, no watermark, no logo"
+            ),
+        }
+        for idx in range(1, 9)
+    ]
+
+
 class FakeSafetyClient:
     async def scan_text(self, text: str) -> dict:
         return {"passed": True}
@@ -75,28 +90,13 @@ class FakeChatLlm:
                     ],
                     "positive_values": ["珍惜家人", "陪伴", "合作"],
                     "story_body_zh": "安安遇见一只想家的小兔。她没有照搬老故事，而是做了一盏月光灯笼，和伙伴沿着桂花香的小路寻找家的方向。大家分享圆圆点心，把思念说成祝福。小兔发现，朋友的陪伴也像一轮温柔的月亮。",
+                    "scenes": make_fake_scenes(),
                 },
                 ensure_ascii=False,
             )
         return json.dumps(
             {
-                "scenes": [
-                    {
-                        "scene_no": 1,
-                        "text_zh": "安安遇见想家的小兔。",
-                        "image_prompt_en": "a 6-year-old Chinese child wearing a green jacket, a small rabbit, moonlit garden, no text, no letters, no watermark, no logo",
-                    },
-                    {
-                        "scene_no": 2,
-                        "text_zh": "他们做了一盏月光灯笼。",
-                        "image_prompt_en": "a 6-year-old Chinese child wearing a green jacket, lantern and rabbit, osmanthus tree, no text, no letters, no watermark, no logo",
-                    },
-                    {
-                        "scene_no": 3,
-                        "text_zh": "朋友们分享圆圆点心。",
-                        "image_prompt_en": "a 6-year-old Chinese child wearing a green jacket, friends sharing round cakes, warm night, no text, no letters, no watermark, no logo",
-                    },
-                ]
+                "scenes": make_fake_scenes()
             },
             ensure_ascii=False,
         )
@@ -111,31 +111,11 @@ class FakeChatLlm:
             ("draft_story", {"core_keywords": "月亮 小兔 想家", "style": "ink-wash"}),
             ("review_safety", {"story_body_zh": "安安遇见一只想家的小兔，做月光灯笼陪它找家。"}),
             (
-                "generate_storyboard",
-                {
-                    "outline_zh": "小兔想家，孩子陪伴它。",
-                    "character_script": [
-                        {
-                            "role": "主角",
-                            "name": "安安",
-                            "appearance_anchor_en": "a 6-year-old Chinese child wearing a green jacket",
-                            "traits_zh": "细心",
-                        }
-                    ],
-                    "story_body_zh": "安安遇见一只想家的小兔，做月光灯笼陪它找家。",
-                    "style": "ink-wash",
-                },
-            ),
-            (
                 "finish_creation",
                 {
                     "title": "月光小车回家",
                     "story_body_zh": "安安遇见一只想家的小兔，做月光灯笼陪它找家。",
-                    "scenes": [
-                        {"scene_no": 1, "text": "安安遇见想家的小兔。", "image_prompt": "child and rabbit, no text"},
-                        {"scene_no": 2, "text": "他们做月光灯笼。", "image_prompt": "lantern, no text"},
-                        {"scene_no": 3, "text": "大家分享圆圆点心。", "image_prompt": "round cakes, no text"},
-                    ],
+                    "scenes": make_fake_scenes(),
                 },
             ),
         ]
@@ -191,6 +171,14 @@ class CultureRagTests(unittest.TestCase):
         hits = service.retrieve("太空机器人和火星电梯", top_k=3)
         self.assertEqual(hits, [])
         self.assertEqual(service.build_culture_context(hits), "")
+
+    def test_watermelon_escape_does_not_force_solar_myths(self) -> None:
+        service = CultureRagService(CORPUS, embedding_enabled=False)
+        hits = service.retrieve(
+            "西瓜 瓜田 乌鸦 逃跑 河流 太阳 夏日 丰收 传说",
+            top_k=3,
+        )
+        self.assertFalse(any(hit.title in {"后羿射日", "夸父追日"} for hit in hits))
 
     def test_sketch_visual_semantics_join_culture_query(self) -> None:
         async def run_case() -> None:

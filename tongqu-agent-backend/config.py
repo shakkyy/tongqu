@@ -40,12 +40,22 @@ class AppConfig:
     QWEN_MODEL: str = os.getenv("QWEN_MODEL", "qwen3.6-plus")
     QWEN_VL_MODEL: str = os.getenv("QWEN_VL_MODEL", "qwen3-vl-plus")
     QWEN_ASR_MODEL: str = os.getenv("QWEN_ASR_MODEL", "qwen3-asr-flash")
+    DASHSCOPE_TTS_MODEL: str = os.getenv("DASHSCOPE_TTS_MODEL", "cosyvoice-v3-flash")
+    DASHSCOPE_TTS_VOICE: str = os.getenv("DASHSCOPE_TTS_VOICE", "longanyang")
+    DASHSCOPE_TTS_FORMAT: str = os.getenv("DASHSCOPE_TTS_FORMAT", "mp3")
+    DASHSCOPE_TTS_SAMPLE_RATE: int = int(os.getenv("DASHSCOPE_TTS_SAMPLE_RATE", "24000"))
+    TTS_SYNTHESIS_CONCURRENCY: int = max(
+        1,
+        int(os.getenv("TTS_SYNTHESIS_CONCURRENCY", "2")),
+    )
+    DASHSCOPE_TTS_URL: str = (
+        (os.getenv("DASHSCOPE_TTS_URL") or "").strip()
+        or "https://dashscope.aliyuncs.com/api/v1/services/audio/tts/SpeechSynthesizer"
+    )
 
     ALIYUN_ACCESS_KEY_ID: str | None = os.getenv("ALIYUN_ACCESS_KEY_ID")
     ALIYUN_ACCESS_KEY_SECRET: str | None = os.getenv("ALIYUN_ACCESS_KEY_SECRET")
     ALIYUN_REGION: str = os.getenv("ALIYUN_REGION", "cn-shanghai")
-    ALIYUN_NLS_APPKEY: str | None = os.getenv("ALIYUN_NLS_APPKEY")
-    ALIYUN_NLS_VOICE: str = os.getenv("ALIYUN_NLS_VOICE", "xiaoyun")
     GREEN_TEXT_SERVICE: str = os.getenv("GREEN_TEXT_SERVICE", "chat_detection_pro")
     GREEN_IMAGE_SERVICE: str = os.getenv("GREEN_IMAGE_SERVICE", "baselineCheck")
 

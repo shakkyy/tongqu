@@ -10,12 +10,11 @@ openai>=1.0.0
 fastapi>=0.115.0
 uvicorn[standard]>=0.32.0
 
-# 阿里云百炼（故事）+ Green + NLS
+# 阿里云百炼（故事 / VL / ASR / CosyVoice TTS）+ Green
 dashscope>=1.25.6
 alibabacloud-tea-openapi>=0.3.8
 alibabacloud-tea-util>=0.3.11
 alibabacloud-green20220302>=2.0.0
-aliyun-python-sdk-core>=2.14.0
 
 # 中文风格关键词增强
 torch>=2.2.0

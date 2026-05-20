@@ -29,7 +29,7 @@ tongqu-agent-backend/
 ├── core/                   # 底层基建与安全
 │   ├── models.py           # Scene、LLM/Image/TTS 协议、CreationSource 等共用模型
 │   ├── safety.py           # SafetyMiddleware：过滤、BERT 位点、价值观对齐、拦截日志
-│   └── clients.py          # DashScope（文本 / VL / ASR 兼容）、Gemini 配图、Green、NLS 等客户端
+│   └── clients.py          # DashScope（文本 / VL / ASR / CosyVoice）、Gemini 配图、Green 等客户端
 │
 ├── agent/                  # ReAct 调度大脑
 │   ├── tongqu_agent.py     # Sandboxed ReAct 主循环、工具路由、与流水线衔接
@@ -67,14 +67,14 @@ tongqu-agent-backend/
 3. **`while` 主循环（Function Calling）**  
    携带 `tools` 调用 Qwen（**须配置 OpenAI 兼容网关**，见下文）。模型可调用：  
    - **`analyze_sketch`**：有草图时走 VL，返回画面语义；  
-   - **`draft_story`**：生成标题、大纲、人物脚本与完整故事正文；  
+   - **`draft_story`**：一次生成标题、大纲、人物脚本、完整故事正文与 8～10 个连续页面；  
    - **`review_safety`**：BERT 位点自查，不通过则应在对话上下文中回到 `draft_story` 再审；  
-   - **`generate_storyboard`**：切分为 3～4 镜，含中文旁白与纯英文 `image_prompt`；  
+   - **`generate_storyboard`**：兼容兜底工具，仅在 `draft_story` 未返回分镜时补充分镜；  
    - **`finish_creation`**：提交终稿 JSON，**唯一正常出口**，跳出循环。  
    工具执行异常会序列化为 tool 消息，支持 Self-Correction。
 
 4. **`finalize_from_structured`（硬编码后置）**  
-   使用终稿中的 `title`、`story_text`、`scenes` 调用 **Gemini 逐镜配图** 与 **阿里云 NLS 合成语音**，并走 Green 与终审逻辑；响应体包含与流水线一致的 **风格增强字段** 与 **`intercept_logs`**。
+   使用终稿中的 `title`、`story_text`、`scenes` 调用 **Gemini 逐镜配图** 与 **DashScope CosyVoice 合成语音**，并走 Green 与终审逻辑；响应体包含与流水线一致的 **风格增强字段** 与 **`intercept_logs`**。
 
 ---
 
@@ -102,7 +102,8 @@ cp .env.example .env
 | **Qwen（叙事 + ReAct）** | `DASHSCOPE_API_KEY` 必填。**ReAct Function Calling** 依赖 **OpenAI 兼容** 的百炼网关：`DASHSCOPE_COMPAT_BASE_URL`（示例见 `.env.example`）。文本单轮生成与多轮 `tools` 共用该通道。 |
 | **Qwen-VL（草图）** | 草图理解可走原生 VL 网关：`DASHSCOPE_VL_BASE_HTTP_API_URL`；与兼容网关可并存。 |
 | **Gemini（配图）** | 二选一：**直连 Google**（`GOOGLE_API_KEY` / `GEMINI_API_KEY`，见 `config.py` 读取逻辑）或 **OpenAI 兼容中转**（`GEMINI_OPENAI_BASE_URL` + `GEMINI_OPENAI_API_KEY`）。 |
-| **阿里云** | `ALIYUN_ACCESS_KEY_ID` / `ALIYUN_ACCESS_KEY_SECRET` 用于 Green 与 NLS Token；`ALIYUN_NLS_APPKEY` 为智能语音交互应用 AppKey（非 AccessKey）。 |
+| **DashScope TTS** | 复用 `DASHSCOPE_API_KEY`，默认 `DASHSCOPE_TTS_MODEL=cosyvoice-v3-flash`、`DASHSCOPE_TTS_VOICE=longanyang`，无需 `ALIYUN_NLS_APPKEY`。 |
+| **阿里云 Green** | `ALIYUN_ACCESS_KEY_ID` / `ALIYUN_ACCESS_KEY_SECRET` 仅用于内容安全 Green。 |
 | **风格 Ranker（可选）** | `STYLE_KEYWORD_ENHANCER_ENABLED=1` 启用；`STYLE_KEYWORD_BANK_PATH`、`STYLE_KEYWORD_MODEL_DIR` 分别指向词库与训练产物目录（可先训练 `training/train_style_keyword_ranker.py` 再部署权重）。 |
 
 完整键名与默认值以 **`config.py`** 与 **`.env.example`** 为准。

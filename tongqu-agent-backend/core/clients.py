@@ -1,5 +1,5 @@
 """
-真实 API 客户端：DashScope Qwen / 千问 VL + 阿里云 Green（审核）+ NLS（语音）。
+真实 API 客户端：DashScope Qwen / 千问 VL / CosyVoice TTS + 阿里云 Green（审核）。
 
 绘本配图由 Gemini 文生图单独提供（见本文件内 GeminiImageClient）；密钥只从环境变量读取。
 """
@@ -9,7 +9,6 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
-import urllib.parse
 from typing import Any, Dict, Optional
 
 import logging
@@ -39,32 +38,18 @@ except ImportError:  # pragma: no cover
     green_models = None  # type: ignore
     open_api_models = None  # type: ignore
 
-try:
-    from aliyunsdkcore.client import AcsClient
-    from aliyunsdkcore.request import CommonRequest
-except ImportError:  # pragma: no cover
-    AcsClient = None  # type: ignore
-    CommonRequest = None  # type: ignore
-
 from config import CONFIG
 
 
 API_KEY_ERROR = "API 密钥配置错误"
-
-# NLS 的 AppKey 与 RAM 的 AccessKey 完全不同；常见误把 LTAI… 填进 ALIYUN_NLS_APPKEY。
-NLS_APPKEY_HINT = (
-    "API 密钥配置错误：ALIYUN_NLS_APPKEY 无效。"
-    "请到阿里云控制台「智能语音交互」创建应用，复制该应用的 AppKey；"
-    "不要填写 AccessKey ID（通常以 LTAI 开头）。"
-)
 
 
 class ApiKeyError(RuntimeError):
     """Access key / DashScope key 无效或缺失。"""
 
 
-class NlsRateLimitError(RuntimeError):
-    """阿里云 NLS 网关限流（并发或 QPS 过高）。"""
+class TtsRateLimitError(RuntimeError):
+    """DashScope TTS 网关限流（并发或 QPS 过高）。"""
 
 
 def _apply_dashscope_base_url() -> None:
@@ -437,97 +422,119 @@ class AliyunGreenSafetyClient:
         return f"（安全改写）我们把故事变得更温暖：{text[:200]}"
 
 
-def _create_nls_token(access_key_id: str, access_key_secret: str, region: str) -> str:
-    if AcsClient is None or CommonRequest is None:
-        raise RuntimeError("请先安装 aliyun-python-sdk-core")
-    client = AcsClient(access_key_id, access_key_secret, region)
-    req = CommonRequest()
-    req.set_method("POST")
-    req.set_domain("nls-meta.cn-shanghai.aliyuncs.com")
-    req.set_version("2019-02-28")
-    req.set_action_name("CreateToken")
-    req.add_query_param("RegionId", region)
-    resp = client.do_action_with_exception(req)
-    data = json.loads(resp.decode("utf-8"))
-    token = data.get("Token", {}).get("Id")
-    if not token:
-        if _is_key_like_invalid(str(data)):
-            raise ApiKeyError(API_KEY_ERROR)
-        raise RuntimeError(f"CreateToken 失败: {data}")
-    return str(token)
-
-
-def _is_invalid_nls_appkey(app_key: str) -> bool:
-    """AccessKey ID 常被误填为 NLS AppKey。"""
-    return app_key.strip().upper().startswith("LTAI")
-
-
-def _raise_if_nls_tts_error(status_code: int, body_text: str) -> None:
-    """将 NLS 网关典型错误映射为 ApiKeyError，便于前端展示统一提示。"""
+def _raise_if_dashscope_tts_error(status_code: int, body_text: str) -> None:
+    """将 DashScope TTS 网关典型错误映射为前端可理解的错误。"""
     if status_code == 200:
         return
     lower = body_text.lower()
-    # 网关 QPS / 并发过高：可重试
-    if status_code == 400 and (
-        "40000005" in body_text
+    if status_code in (400, 429) and (
+        "throttling" in lower
         or "too_many_requests" in lower
         or "too many requests" in lower
+        or "rate limit" in lower
     ):
-        raise NlsRateLimitError(body_text[:500])
-    if status_code == 400 and (
-        "40020105" in body_text
-        or "appkey_not_exist" in lower
-        or "appkey not exist" in lower
-    ):
-        raise ApiKeyError(NLS_APPKEY_HINT)
+        raise TtsRateLimitError(body_text[:500])
     if status_code in (401, 403):
         raise ApiKeyError(API_KEY_ERROR)
-    raise RuntimeError(f"TTS 请求失败: {status_code} {body_text[:500]}")
+    if "invalidapikey" in lower or "invalid api key" in lower:
+        raise ApiKeyError(API_KEY_ERROR)
+    raise RuntimeError(f"DashScope TTS 请求失败: {status_code} {body_text[:500]}")
 
 
-class AliyunNlsTtsClient:
+def _find_audio_url(value: Any) -> str | None:
+    """CosyVoice 非流式接口返回 JSON，其中包含 24 小时有效音频 URL。"""
+    if isinstance(value, dict):
+        for key in ("url", "audio_url", "file_url"):
+            raw = value.get(key)
+            if isinstance(raw, str) and raw.startswith(("http://", "https://")):
+                return raw
+        for child in value.values():
+            found = _find_audio_url(child)
+            if found:
+                return found
+    if isinstance(value, list):
+        for child in value:
+            found = _find_audio_url(child)
+            if found:
+                return found
+    return None
+
+
+class DashScopeCosyVoiceTtsClient:
     """
-    阿里云 NLS 语音合成：返回可前端播放的 data URL（mp3 base64）。
-    需在控制台创建项目并配置 ALIYUN_NLS_APPKEY。
+    DashScope CosyVoice 语音合成：返回可前端播放的 data URL。
     """
 
     def __init__(
         self,
-        access_key_id: Optional[str] = None,
-        access_key_secret: Optional[str] = None,
-        app_key: Optional[str] = None,
-        region: Optional[str] = None,
+        api_key: Optional[str] = None,
+        model: Optional[str] = None,
         voice: Optional[str] = None,
+        audio_format: Optional[str] = None,
+        sample_rate: Optional[int] = None,
+        endpoint: Optional[str] = None,
     ) -> None:
-        self.access_key_id = access_key_id or CONFIG.ALIYUN_ACCESS_KEY_ID
-        self.access_key_secret = access_key_secret or CONFIG.ALIYUN_ACCESS_KEY_SECRET
-        self.app_key = app_key or CONFIG.ALIYUN_NLS_APPKEY
-        self.region = region or CONFIG.ALIYUN_REGION
-        self.voice = voice or CONFIG.ALIYUN_NLS_VOICE
+        self.api_key = api_key or CONFIG.DASHSCOPE_API_KEY
+        self.model = model or CONFIG.DASHSCOPE_TTS_MODEL
+        self.voice = voice or CONFIG.DASHSCOPE_TTS_VOICE
+        self.audio_format = (audio_format or CONFIG.DASHSCOPE_TTS_FORMAT).lower()
+        self.sample_rate = sample_rate or CONFIG.DASHSCOPE_TTS_SAMPLE_RATE
+        self.endpoint = endpoint or CONFIG.DASHSCOPE_TTS_URL
 
     async def synthesize(self, text: str, voice: str) -> str:
-        if not self.access_key_id or not self.access_key_secret:
+        if not self.api_key:
             raise ApiKeyError(API_KEY_ERROR)
-        if not (self.app_key or "").strip():
-            raise ApiKeyError(
-                "API 密钥配置错误：请填写 ALIYUN_NLS_APPKEY（智能语音交互控制台创建应用后的 AppKey，不是 AccessKey）。"
-            )
-        if _is_invalid_nls_appkey(self.app_key):
-            raise ApiKeyError(NLS_APPKEY_HINT)
+        selected_voice = voice if voice and voice != "亲切姐姐" else self.voice
 
         def _call_once() -> str:
-            token = _create_nls_token(self.access_key_id, self.access_key_secret, self.region)
-            encoded_text = urllib.parse.quote_plus(text)
-            url = (
-                "https://nls-gateway.cn-shanghai.aliyuncs.com/stream/v1/tts"
-                f"?appkey={self.app_key}&token={token}&text={encoded_text}"
-                f"&format=mp3&voice={urllib.parse.quote_plus(self.voice)}"
+            payload = {
+                "model": self.model,
+                "input": {
+                    "text": text,
+                    "voice": selected_voice,
+                    "format": self.audio_format,
+                    "sample_rate": self.sample_rate,
+                },
+            }
+            r = requests.post(
+                self.endpoint,
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json",
+                },
+                json=payload,
+                timeout=90,
             )
-            r = requests.get(url, timeout=60)
-            _raise_if_nls_tts_error(r.status_code, r.text or "")
-            audio = r.content
+            _raise_if_dashscope_tts_error(r.status_code, r.text or "")
+            content_type = (r.headers.get("content-type") or "").lower()
+            if "json" in content_type:
+                data = r.json()
+                audio_url = _find_audio_url(data)
+                if not audio_url:
+                    raise RuntimeError(f"DashScope TTS 未返回音频 URL: {r.text[:500]}")
+                audio_resp = requests.get(audio_url, timeout=90)
+                if audio_resp.status_code != 200:
+                    raise RuntimeError(
+                        f"下载 DashScope TTS 音频失败: {audio_resp.status_code} {audio_resp.text[:300]}"
+                    )
+                audio = audio_resp.content
+                content_type = (audio_resp.headers.get("content-type") or "").lower()
+            else:
+                audio = r.content
+            if not audio:
+                raise RuntimeError("DashScope TTS 返回空音频")
+            if audio[:1] in {b"{", b"["}:
+                raise RuntimeError(f"DashScope TTS 返回疑似 JSON 而非音频: {audio[:500].decode('utf-8', errors='ignore')}")
             b64 = base64.b64encode(audio).decode("ascii")
-            return f"data:audio/mpeg;base64,{b64}"
+            mime = next(
+                (x for x in ("audio/mpeg", "audio/mp3", "audio/wav", "audio/aac") if x in content_type),
+                None,
+            ) or {
+                "mp3": "audio/mpeg",
+                "wav": "audio/wav",
+                "pcm": "audio/L16",
+            }.get(self.audio_format, "audio/mpeg")
+            return f"data:{mime};base64,{b64}"
 
         # 限流时退避重试（多页并行时网关易返回 TOO_MANY_REQUESTS）
         max_attempts = 5
@@ -535,7 +542,7 @@ class AliyunNlsTtsClient:
         for attempt in range(max_attempts):
             try:
                 return await asyncio.to_thread(_call_once)
-            except NlsRateLimitError as exc:
+            except TtsRateLimitError as exc:
                 last_exc = exc
                 if attempt < max_attempts - 1:
                     await asyncio.sleep(1.0 * (2**attempt))

@@ -11,12 +11,7 @@ from __future__ import annotations
 import json
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
-from agent.tools import (
-    CharacterScriptEntry,
-    StoryPlanningArgs,
-    StoryboardGenerationArgs,
-    TongquToolHandlers,
-)
+from agent.tools import CharacterScriptEntry, StoryPlanningArgs, TongquToolHandlers
 from config import CONFIG
 from core.clients import ApiKeyError
 from core.models import CreationSource, Scene
@@ -34,10 +29,9 @@ _REACT_SYSTEM_PROMPT = """你是「童趣绘梦」的儿童绘本主理人，负
 **标准作业流程（SOP）——须严格遵守：**
 1. 若工作区标明「用户带有草图图片」，必须先调用 `analyze_sketch` 获取画面语义；若无草图，可跳过此步。
 2. 调用 `retrieve_culture`：基于 safe_keywords、sketch_text 与（若有）visual_semantics 检索文化语料，取得 culture_context。
-3. 调用 `draft_story`：结合工作区中的「用于写故事的核心素材 safe_keywords」、（若有）视觉语义与 culture_context，生成标题、大纲、人物脚本、价值观与完整故事正文（ 600-800 字）。
+3. 调用 `draft_story`：结合工作区中的「用于写故事的核心素材 safe_keywords」、（若有）视觉语义与 culture_context，一次性生成标题、大纲、人物脚本、价值观、完整故事正文（650-900 字）和 8-10 个连续分镜页面。
 4. 调用 `review_safety`：对故事正文做自我审查（BERT 位点）。若结果不安全或高风险，**不要**继续分镜，应再次调用 `draft_story` 改写后再调用 `review_safety`。
-5. 仅在审查通过后，调用 `generate_storyboard`：将故事切分为 8-10 个分镜，每镜含中文旁白与**纯英文** image_prompt，并保持角色视觉锚点一致。
-6. 当你确认分镜合理且已通过安全审查时，调用 `finish_creation` 传入 `title`、`story_body_zh` 与 `scenes` 列表以**结束**整个创作流程。
+5. 当你确认 `draft_story` 已返回合理分镜且安全审查通过后，调用 `finish_creation` 传入 `title`、`story_body_zh` 与 `scenes` 列表以**结束**整个创作流程。
 
 **重要约束：**
 - 面向 4～10 岁儿童，积极正向；不得输出违法、暴力、色情、恐怖或歧视内容。
@@ -69,7 +63,7 @@ def _build_react_tools() -> list[dict[str, Any]]:
             "type": "function",
             "function": {
                 "name": "draft_story",
-                "description": "根据安全过滤后的关键词、（可选）草图视觉语义与文化 RAG 上下文，生成完整故事策划 JSON（含 title_zh、outline_zh、character_script、positive_values、story_body_zh）。",
+                "description": "根据安全过滤后的关键词、（可选）草图视觉语义与文化 RAG 上下文，一次生成完整故事与 8-10 页连续分镜 JSON（含 title_zh、outline_zh、character_script、positive_values、story_body_zh、scenes）。",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -135,7 +129,7 @@ def _build_react_tools() -> list[dict[str, Any]]:
             "type": "function",
             "function": {
                 "name": "generate_storyboard",
-                "description": "在故事与安全审查通过后，将故事拆成 3-4 个分镜（中文旁白 + 纯英文 image_prompt）。",
+                "description": "兼容兜底工具：仅当 draft_story 没有返回 scenes 时才调用，将故事拆成 8-10 个连续分镜。",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -182,8 +176,8 @@ def _build_react_tools() -> list[dict[str, Any]]:
                         "story_body_zh": {"type": "string", "description": "与分镜一致的故事全文。"},
                         "scenes": {
                             "type": "array",
-                            "minItems": 3,
-                            "maxItems": 4,
+                            "minItems": 8,
+                            "maxItems": 10,
                             "items": {
                                 "type": "object",
                                 "properties": {
@@ -249,6 +243,7 @@ class TongquAgent:
         self._ctx_culture_hits: list[CultureHit] = []
         self._ctx_culture_context: str = ""
         self._ctx_culture_integration_note: str = ""
+        self._ctx_culture_query: str = ""
 
     def _merge_agent_fields(
         self,
@@ -320,10 +315,14 @@ class TongquAgent:
         }
 
     def _retrieve_culture_for_query(self, query: str, top_k: int | None = None) -> dict[str, Any]:
+        query = (query or "").strip()
+        if self._ctx_culture_hits and query and query == self._ctx_culture_query:
+            return self._culture_payload()
         hits = self._culture.retrieve(
             query,
             top_k=top_k or CONFIG.CULTURE_RAG_TOP_K,
         )
+        self._ctx_culture_query = query
         self._ctx_culture_hits = hits
         self._ctx_culture_context = self._culture.build_culture_context(hits)
         self._ctx_culture_integration_note = self._culture.integration_note(hits)
@@ -349,26 +348,20 @@ class TongquAgent:
         )
         self._ctx_vl_used = ctx.vl_used
         self._ctx_visual_semantics = ctx.vl_understanding
-        if ctx.vl_understanding:
-            query = "\n".join(
-                part
-                for part in [
-                    self._ctx_safe_keywords,
-                    self._ctx_sketch_text or "",
-                    ctx.vl_understanding,
-                ]
-                if part
-            )
-            self._retrieve_culture_for_query(query)
         return {
             "visual_semantics": ctx.vl_understanding,
             "vl_used": ctx.vl_used,
-            "culture_rag": self._culture_payload(),
-            "message": "草图语义已生成，请在 draft_story 中传入 visual_semantics 与 core_keywords（工作区 safe_keywords）。",
+            "message": "草图语义已生成，请继续调用 retrieve_culture，并把 visual_semantics 与 core_keywords 一起作为 query。",
         }
 
     async def _tool_retrieve_culture(self, args: dict[str, Any]) -> dict[str, Any]:
         query = (args.get("query") or "").strip()
+        query_parts = [query]
+        for extra in [self._ctx_sketch_text or "", self._ctx_visual_semantics or ""]:
+            extra = extra.strip()
+            if extra and extra not in query:
+                query_parts.append(extra)
+        query = "\n".join(part for part in query_parts if part)
         if not query:
             query = "\n".join(
                 part
@@ -414,11 +407,13 @@ class TongquAgent:
             "next_step_hint": (
                 "请再次调用 draft_story 改写故事正文，然后再调用 review_safety。"
                 if not passed
-                else "可调用 generate_storyboard 生成分镜。"
+                else "可直接调用 finish_creation，使用 draft_story 返回的 scenes 完成提交。"
             ),
         }
 
     async def _tool_generate_storyboard(self, args: dict[str, Any]) -> dict[str, Any]:
+        from agent.tools import StoryboardGenerationArgs
+
         outline = (args.get("outline_zh") or "").strip()
         raw_cs = args.get("character_script")
         story_body = (args.get("story_body_zh") or "").strip()
@@ -444,8 +439,8 @@ class TongquAgent:
         raw_scenes = args.get("scenes")
         if not title or not story_body:
             raise ValueError("title 与 story_body_zh 不能为空")
-        if not isinstance(raw_scenes, list) or not (3 <= len(raw_scenes) <= 4):
-            raise ValueError("scenes 必须为 3～4 条")
+        if not isinstance(raw_scenes, list) or not (8 <= len(raw_scenes) <= 10):
+            raise ValueError("scenes 必须为 8～10 条")
         scenes: List[Scene] = []
         for item in raw_scenes:
             if not isinstance(item, dict):
@@ -453,8 +448,8 @@ class TongquAgent:
             scenes.append(
                 Scene(
                     scene_no=int(item["scene_no"]),
-                    text=str(item.get("text", "")),
-                    image_prompt=str(item.get("image_prompt", "")),
+                    text=str(item.get("text") or item.get("text_zh") or ""),
+                    image_prompt=str(item.get("image_prompt") or item.get("image_prompt_en") or ""),
                 )
             )
         scenes.sort(key=lambda s: s.scene_no)
@@ -634,31 +629,15 @@ class TongquAgent:
         self._ctx_culture_hits = []
         self._ctx_culture_context = ""
         self._ctx_culture_integration_note = ""
-
-        culture_query = "\n".join(
-            part
-            for part in [safe_keywords, (sketch_text or "").strip()]
-            if part
-        )
-        self._retrieve_culture_for_query(culture_query)
-        await self._emit_agent_trace(
-            on_progress,
-            kind="tool_result",
-            title="文化检索结果",
-            detail=(
-                "命中：" + "、".join(hit.title for hit in self._ctx_culture_hits)
-                if self._ctx_culture_hits
-                else "没有高相关文化条目，本轮不会强行注入传统故事。"
-            ),
-            culture_hits=[hit.to_public_dict() for hit in self._ctx_culture_hits],
-        )
+        self._ctx_culture_query = ""
 
         workspace = {
             "style_slug": style,
             "safe_keywords": material_for_llm,
             "raw_safe_keywords_after_input_filter": safe_keywords,
-            "culture_context": self._ctx_culture_context,
-            "culture_hits": [hit.to_api_dict() for hit in self._ctx_culture_hits],
+            "culture_context": "",
+            "culture_hits": [],
+            "culture_retrieval_status": "not_retrieved_yet_call_retrieve_culture_tool",
             "original_keywords": (keywords or "").strip(),
             "sketch_text": (sketch_text or "").strip(),
             "has_sketch_image": bool((sketch_image_base64 or "").strip()),
@@ -697,14 +676,14 @@ class TongquAgent:
                         on_progress,
                         kind="repair",
                         title="中枢自我纠偏",
-                        detail="模型没有调用工具，系统已提醒它必须按 analyze/retrieve/draft/review/board/finish 的工具链继续。",
+                        detail="模型没有调用工具，系统已提醒它必须按 analyze/retrieve/draft/review/finish 的工具链继续。",
                         turn=step,
                     )
                     messages.append(_assistant_message_to_dict(msg))
                     messages.append(
                         {
                             "role": "user",
-                            "content": "请使用工具继续：若有草图请先 analyze_sketch，然后 retrieve_culture，再 draft_story → review_safety → generate_storyboard → finish_creation。",
+                            "content": "请使用工具继续：若有草图请先 analyze_sketch，然后 retrieve_culture，再 draft_story → review_safety → finish_creation。draft_story 会一次返回 story_body_zh 与 8-10 页 scenes。",
                         }
                     )
                     continue
@@ -720,7 +699,7 @@ class TongquAgent:
                         detail={
                             "analyze_sketch": "先理解草图里的角色、场景和动作，再把视觉语义补进故事素材。",
                             "retrieve_culture": "根据安全素材和草图语义检索传统文化条目，提取可儿童化改写的核心思想。",
-                            "draft_story": "把用户素材、草图语义和文化参考交给故事策划工具，生成标题、正文和价值观。",
+                            "draft_story": "把用户素材、草图语义和文化参考交给故事策划工具，一次生成标题、正文、价值观和 8-10 页分镜。",
                             "review_safety": "对故事正文做儿童安全初审，不通过则要求重新改写。",
                             "generate_storyboard": "把故事拆成分镜，并生成每页英文生图提示词。",
                             "finish_creation": "确认结构化成稿，准备进入配图和语音合成流水线。",
@@ -745,8 +724,8 @@ class TongquAgent:
                         await self._emit_progress(
                             on_progress,
                             "draft",
-                            "撰写故事正文",
-                            "正在构思标题、正文与角色设定",
+                            "撰写故事与分镜",
+                            "正在一次生成标题、正文、角色设定与 8-10 页分镜",
                         )
                     elif name == "review_safety":
                         await self._emit_progress(
@@ -797,9 +776,9 @@ class TongquAgent:
                                 if tool_payload.get("used")
                                 else "文化检索完成：没有高相关命中。"
                             ),
-                            "draft_story": f"故事草案完成：{tool_payload.get('title_zh', '未命名')}。",
+                            "draft_story": f"故事与分镜草案完成：{tool_payload.get('title_zh', '未命名')}，共 {len(tool_payload.get('scenes', []) or [])} 页。",
                             "review_safety": (
-                                "安全初审通过，可以进入分镜。"
+                                "安全初审通过，可以提交结构化成稿。"
                                 if tool_payload.get("safe_for_storyboard")
                                 else "安全初审未通过，中枢会要求重新改写故事。"
                             ),

@@ -36,7 +36,7 @@ class ImageClient(Protocol):
 
 
 class TTSClient(Protocol):
-    """朗读合成（如阿里云 NLS）。"""
+    """朗读合成（如 DashScope CosyVoice）。"""
 
     async def synthesize(self, text: str, voice: str) -> str:
         ...

@@ -123,6 +123,7 @@ export default function App() {
   const [sketchSnapshotUrl, setSketchSnapshotUrl] = useState<string | null>(null);
   const [sketchDescription, setSketchDescription] = useState("");
   const [lastBookSource, setLastBookSource] = useState<"voice" | "keywords" | "sketch" | null>(null);
+  const currentAudioRef = useRef<HTMLAudioElement | null>(null);
   const sketchPadRef = useRef<SketchPadHandle>(null);
   const [bookshelfOpen, setBookshelfOpen] = useState(false);
   const [bookshelfItems, setBookshelfItems] = useState<BookshelfEntry[]>([]);
@@ -130,6 +131,7 @@ export default function App() {
 
   const {
     isListening: voiceListening,
+    isFinalizing: voiceFinalizing,
     serviceReady: voiceServiceReady,
     transcriptForApi: voiceTranscript,
     displayText: voiceDisplayText,
@@ -142,6 +144,16 @@ export default function App() {
   const [voiceEditDirty, setVoiceEditDirty] = useState(false);
   const prevVoiceListening = useRef(false);
 
+  const handleVoiceToggle = useCallback(() => {
+    if (voiceListening) {
+      const captured = (voiceDisplayText || voiceTranscript || "").trim();
+      if (captured && !voiceEditDirty) {
+        setVoiceEditedText(captured);
+      }
+    }
+    toggleVoiceListening();
+  }, [toggleVoiceListening, voiceDisplayText, voiceEditDirty, voiceListening, voiceTranscript]);
+
   useEffect(() => {
     if (voiceListening && !prevVoiceListening.current) {
       setVoiceEditDirty(false);
@@ -151,16 +163,16 @@ export default function App() {
   }, [voiceListening]);
 
   useEffect(() => {
-    if (!voiceListening && !voiceEditDirty) {
+    if (!voiceListening && !voiceFinalizing && !voiceEditDirty) {
       setVoiceEditedText(voiceTranscript);
     }
-  }, [voiceTranscript, voiceListening, voiceEditDirty]);
+  }, [voiceTranscript, voiceListening, voiceFinalizing, voiceEditDirty]);
 
   useEffect(() => {
     if (creationMode !== "voice" && voiceListening) {
-      toggleVoiceListening();
+      handleVoiceToggle();
     }
-  }, [creationMode, voiceListening, toggleVoiceListening]);
+  }, [creationMode, handleVoiceToggle, voiceListening]);
 
   const refreshBookshelf = useCallback(async () => {
     const items = await loadBookshelf();
@@ -243,8 +255,8 @@ export default function App() {
         { id: "sketch", title: "解析草图灵感", detail: "正在理解孩子画里的主角和场景" },
         { id: "orchestrate", title: "中枢 Agent 编排", detail: "规划故事、分镜与配图流程" },
         { id: "culture", title: "检索文化语料", detail: "查找传统文化主题和儿童化改写线索" },
-        { id: "draft", title: "撰写故事正文", detail: "生成儿童友好的故事文本" },
-        { id: "board", title: "生成分镜脚本", detail: "拆分为 3~4 个页面场景" },
+        { id: "draft", title: "撰写故事与分镜", detail: "生成故事正文并拆分为 8~10 个连续页面" },
+        { id: "board", title: "整理分镜脚本", detail: "检查每页旁白、画面提示词与角色一致性" },
         { id: "image", title: "绘制插画场景", detail: "按分镜逐页生成中国风配图" },
         { id: "tts", title: "合成朗读音频", detail: "为每页旁白生成温和朗读" },
         { id: "review", title: "安全审阅与润色", detail: "进行儿童安全复核与价值观对齐" },
@@ -254,8 +266,8 @@ export default function App() {
       { id: "queued", title: "任务已接收", detail: "童趣中枢正在准备创作材料" },
       { id: "orchestrate", title: "中枢 Agent 编排", detail: "规划故事、分镜与配图流程" },
       { id: "culture", title: "检索文化语料", detail: "查找传统文化主题和儿童化改写线索" },
-      { id: "draft", title: "撰写故事正文", detail: "生成儿童友好的故事文本" },
-      { id: "board", title: "生成分镜脚本", detail: "拆分为 3~4 个页面场景" },
+      { id: "draft", title: "撰写故事与分镜", detail: "生成故事正文并拆分为 8~10 个连续页面" },
+      { id: "board", title: "整理分镜脚本", detail: "检查每页旁白、画面提示词与角色一致性" },
       { id: "image", title: "绘制插画场景", detail: "按分镜逐页生成中国风配图" },
       { id: "tts", title: "合成朗读音频", detail: "为每页旁白生成温和朗读" },
       { id: "review", title: "安全审阅与润色", detail: "进行儿童安全复核与价值观对齐" },
@@ -296,20 +308,26 @@ export default function App() {
     const page = pages[index];
     if (!page) return;
     window.speechSynthesis.cancel();
+    if (currentAudioRef.current) {
+      currentAudioRef.current.pause();
+      currentAudioRef.current = null;
+    }
     if (page.audioUrl && page.audioUrl.startsWith("data:audio")) {
       const a = new Audio(page.audioUrl);
-      void a.play().catch(() => {
-        const utterance = new SpeechSynthesisUtterance(page.text);
-        utterance.lang = "zh-CN";
-        utterance.rate = 0.95;
-        window.speechSynthesis.speak(utterance);
+      currentAudioRef.current = a;
+      a.preload = "auto";
+      a.load();
+      void a.play().catch((err) => {
+        const message = err instanceof Error ? err.message : String(err);
+        setApiError(`CosyVoice 音频播放失败：${message}`);
+        console.error("CosyVoice audio play failed", err, {
+          audioPrefix: page.audioUrl?.slice(0, 80),
+          audioLength: page.audioUrl?.length,
+        });
       });
       return;
     }
-    const utterance = new SpeechSynthesisUtterance(page.text);
-    utterance.lang = "zh-CN";
-    utterance.rate = 0.95;
-    window.speechSynthesis.speak(utterance);
+    setApiError("本页没有收到 CosyVoice 音频，未使用浏览器机械朗读兜底。");
   };
 
   const autoPlayPage = (index: number) => {
@@ -490,7 +508,6 @@ export default function App() {
         const src: BookshelfEntry["mode"] =
           creationMode === "sketch" ? "sketch" : creationMode === "keywords" ? "keywords" : "voice";
         setLastBookSource(src);
-        queueMicrotask(() => speakPage(pages, 0));
       } else {
         setApiError("后端返回数据不完整（缺少 title / scenes / image_urls）");
         if (creationMode === "sketch") setSketchSnapshotUrl(null);
@@ -583,7 +600,7 @@ export default function App() {
                     <div className="py-1 flex justify-center">
                       <VoiceInput
                         isListening={voiceListening}
-                        onToggle={toggleVoiceListening}
+                        onToggle={handleVoiceToggle}
                         disabled={isGenerating}
                       />
                     </div>
@@ -603,7 +620,10 @@ export default function App() {
                           )}
                         </div>
                       )}
-                      {API_BASE && !voiceListening && (
+                      {API_BASE && voiceFinalizing && (
+                        <p className="text-cn-azure font-bold">正在整理识别结果，请稍候…</p>
+                      )}
+                      {API_BASE && !voiceListening && !voiceFinalizing && (
                         <div className="flex flex-col gap-1.5">
                           {voiceError && (
                             <p className="text-red-600 font-bold leading-snug">{voiceError}</p>

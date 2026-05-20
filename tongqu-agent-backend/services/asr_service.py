@@ -86,7 +86,11 @@ class AsrRealtimeBridge:
             except Exception:
                 pass
 
-        asyncio.run_coroutine_threadsafe(_send(), self._loop)
+        future = asyncio.run_coroutine_threadsafe(_send(), self._loop)
+        try:
+            future.result(timeout=5.0)
+        except Exception:
+            pass
 
     def _mark_ready(self) -> None:
         def _cb() -> None:

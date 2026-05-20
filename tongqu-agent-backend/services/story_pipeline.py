@@ -1,5 +1,5 @@
 """
-故事成书流水线：Qwen Plus 生成结构化故事 JSON → 全部由 Gemini 配图 → NLS 朗读。
+故事成书流水线：Qwen Plus 生成结构化故事 JSON → 全部由 Gemini 配图 → CosyVoice 朗读。
 
 输入仅为已整理好的「故事素材」纯文本（语音/选词/草图模块需先合并完成）。
 """
@@ -127,7 +127,7 @@ class StorybookPipeline:
                 on_progress,
                 "tts",
                 "合成朗读音频",
-                f"开始为 {len(scenes)} 页旁白合成音频",
+                f"开始用 DashScope CosyVoice（{CONFIG.DASHSCOPE_TTS_MODEL} / {CONFIG.DASHSCOPE_TTS_VOICE}）为 {len(scenes)} 页旁白合成音频",
                 total=len(scenes),
             )
             audio_urls = await self._synthesize_all_scenes(
@@ -245,7 +245,7 @@ class StorybookPipeline:
                 raw_scenes = data.get("scenes") or []
                 if isinstance(raw_scenes, list) and raw_scenes:
                     parsed: List[Scene] = []
-                    for idx, item in enumerate(raw_scenes[:4], start=1):
+                    for idx, item in enumerate(raw_scenes[:10], start=1):
                         if not isinstance(item, dict):
                             continue
                         parsed.append(
@@ -276,7 +276,7 @@ class StorybookPipeline:
                 on_progress,
                 "tts",
                 "合成朗读音频",
-                f"开始为 {len(scenes)} 页旁白合成音频",
+                f"开始用 DashScope CosyVoice（{CONFIG.DASHSCOPE_TTS_MODEL} / {CONFIG.DASHSCOPE_TTS_VOICE}）为 {len(scenes)} 页旁白合成音频",
                 total=len(scenes),
             )
             audio_urls = await self._synthesize_all_scenes(
@@ -371,16 +371,16 @@ class StorybookPipeline:
 2) 价值观导向：积极向上，自然融入（而非生硬说教）勇气、合作、善良或诚信等品质。
 3) 故事结构：
    - title: 创意且吸引人的故事标题（中文）
-   - story: 完整故事连贯流畅（总字数 150-250 字）
-   - scenes: 将故事拆分为 3-4 个画面场景。
+   - story: 完整故事连贯流畅（总字数 650-900 字），像一本真正的 8-10 页绘本，有清楚的起因、经过、转折和结尾。
+   - scenes: 将故事拆分为 8-10 个连续画面场景，每个场景承接上一页并推进下一页，不要各写各的。
 4) 场景字段要求 (scenes)：
    - scene_no: 场景序号 (1, 2, 3...)
-   - text: 该画面的绘本旁白（中文，约 30-50 字）
+   - text: 该画面的绘本旁白（中文，约 55-90 字）
    - image_prompt: 提交给 AI 生图模型的提示词【重要规范如下】：
      a. **必须完全使用英文 (English)** 输出。
      b. **不要带叙事动作**（如 "decided to", "felt happy"），只描述定格画面可见的内容。
      c. **画面结构**：[Main Subject & Appearance] + [Action/Pose] + [Environment/Background] + [Lighting/Atmosphere].
-     d. **角色一致性**：在第一个场景为主角设定简短的英文视觉特征（如 "a 5-year-old Chinese boy wearing a red shirt and blue pants"），并在后续**每一个**场景的 image_prompt 中严格重复这段特征，以保持角色长相连贯。
+     d. **角色一致性**：在第一个场景为主角设定简短的英文视觉特征（如 "a 5-year-old Chinese boy wearing a red shirt and blue pants"），并在后续**每一个**场景的 image_prompt 中严格重复这段特征；重要配角和关键道具出现时也要复用固定特征，以保持角色长相、服饰、颜色和道具连贯。
      e. **风格适配**：基于当前的风格「{style}」，在英文中加入对应的高级修饰词，并避开冲突技法：
         - 水墨 (Ink wash): "traditional Chinese ink wash painting, minimalist, expressive brushstrokes, negative space", 避免 "3D, photorealistic, thick impasto".
         - 剪纸 (Paper cutting): "Chinese paper cutting art, layered flat paper, intricate cutout patterns, red and gold color palette", 避免 "realistic perspective, oil painting".
@@ -423,12 +423,12 @@ class StorybookPipeline:
             raise ValueError("LLM 未返回 scenes")
 
         scenes: List[Scene] = []
-        for idx, item in enumerate(raw_scenes[:4], start=1):
+        for idx, item in enumerate(raw_scenes[:10], start=1):
             scenes.append(
                 Scene(
                     scene_no=int(item.get("scene_no", idx)),
-                    text=str(item.get("text", "")),
-                    image_prompt=str(item.get("image_prompt", "")),
+                    text=str(item.get("text") or item.get("text_zh") or ""),
+                    image_prompt=str(item.get("image_prompt") or item.get("image_prompt_en") or ""),
                 )
             )
         return title, story_text, scenes
@@ -502,20 +502,26 @@ class StorybookPipeline:
         *,
         on_progress: ProgressReporter | None = None,
     ) -> List[str]:
-        urls: List[str] = []
-        for idx, scene in enumerate(scenes):
-            if idx > 0:
-                await asyncio.sleep(0.45)
-            await self._emit_progress(
-                on_progress,
-                "tts",
-                "合成朗读音频",
-                f"语音合成中（{idx + 1}/{len(scenes)}）",
-                current=idx + 1,
-                total=len(scenes),
-            )
-            urls.append(await self.tts_client.synthesize(scene.text, voice))
-        return urls
+        semaphore = asyncio.Semaphore(CONFIG.TTS_SYNTHESIS_CONCURRENCY)
+
+        async def _run_one(idx: int, scene: Scene) -> tuple[int, str]:
+            async with semaphore:
+                if idx > 0:
+                    await asyncio.sleep(0.25)
+                await self._emit_progress(
+                    on_progress,
+                    "tts",
+                    "合成朗读音频",
+                    f"CosyVoice 语音合成中（{idx + 1}/{len(scenes)}）",
+                    current=idx + 1,
+                    total=len(scenes),
+                )
+                return idx, await self.tts_client.synthesize(scene.text, voice)
+
+        pairs = await asyncio.gather(
+            *[_run_one(idx, scene) for idx, scene in enumerate(scenes)]
+        )
+        return [url for _, url in sorted(pairs, key=lambda item: item[0])]
 
     async def _emit_progress(
         self,
@@ -564,7 +570,7 @@ class StorybookPipeline:
 
 
 def build_default_story_pipeline() -> StorybookPipeline:
-    """装配：Qwen Plus + Gemini 配图 + Green + NLS。"""
+    """装配：Qwen Plus + Gemini 配图 + Green + DashScope CosyVoice。"""
     missing: list[str] = []
     if not CONFIG.DASHSCOPE_API_KEY:
         missing.append("DASHSCOPE_API_KEY")
@@ -580,15 +586,15 @@ def build_default_story_pipeline() -> StorybookPipeline:
 
     from core.clients import (
         AliyunGreenSafetyClient,
-        AliyunNlsTtsClient,
         DashScopeQwenClient,
+        DashScopeCosyVoiceTtsClient,
         GeminiImageClient,
     )
 
     return StorybookPipeline(
         llm_client=DashScopeQwenClient(),
         image_client=GeminiImageClient(),
-        tts_client=AliyunNlsTtsClient(),
+        tts_client=DashScopeCosyVoiceTtsClient(),
         safety_client=AliyunGreenSafetyClient(),
     )
 

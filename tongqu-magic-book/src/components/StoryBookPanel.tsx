@@ -57,7 +57,6 @@ export function StoryBookPanel({
   const [shareExportBusy, setShareExportBusy] = useState<"share" | "export" | null>(null);
   const [cultureOpen, setCultureOpen] = useState(false);
   const currentStage = generationStages[Math.min(generationStageIndex, Math.max(generationStages.length - 1, 0))];
-  const stageCount = Math.max(1, generationStages.length);
   const traceKindLabel: Record<string, string> = {
     observe: "观察",
     decision: "决策",
@@ -250,8 +249,8 @@ export function StoryBookPanel({
             </div>
           </div>
         ) : (
-          <div className="w-full h-full max-w-2xl px-4 md:px-6 py-3 flex items-center">
-            <div className="w-full max-h-[90%] rounded-2xl border-2 border-cn-ink bg-[#FCF8EE] bg-paper-texture overflow-hidden font-sans flex flex-col min-h-0">
+          <div className="w-full h-full max-w-2xl px-4 md:px-6 py-3 flex items-start justify-center overflow-y-auto agent-scroll">
+            <div className="w-full rounded-2xl border-2 border-cn-ink bg-[#FCF8EE] bg-paper-texture overflow-hidden font-sans flex flex-col">
               <div className="px-4 py-3 border-b-2 border-cn-ink/25 bg-[#FDF9F0]/95 flex-shrink-0">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0">
@@ -272,13 +271,12 @@ export function StoryBookPanel({
                 </div>
               </div>
 
-              <div className="p-3 md:p-4 flex-1 min-h-0">
-                <div className="grid h-full min-h-0 gap-3 md:grid-cols-[minmax(0,0.92fr)_minmax(220px,1.08fr)]">
-                  <div className="min-h-0">
+              <div className="p-3 md:p-4">
+                <div className="grid items-start gap-3 md:grid-cols-[minmax(0,0.92fr)_minmax(220px,1.08fr)]">
+                  <div className="pr-1">
                     {generationStages.length > 0 ? (
                       <div
-                        className="grid h-full min-h-0 gap-1.5"
-                        style={{ gridTemplateRows: `repeat(${stageCount}, minmax(0, 1fr))` }}
+                        className="space-y-1.5"
                       >
                         {generationStages.map((stage, idx) => {
                           const done = idx < generationStageIndex;
@@ -332,12 +330,12 @@ export function StoryBookPanel({
                     )}
                   </div>
 
-                  <div className="min-h-0 rounded-xl border-2 border-[#A56E3F]/70 bg-white/70 overflow-hidden flex flex-col">
+                  <div className="rounded-xl border-2 border-[#A56E3F]/70 bg-white/70 overflow-hidden flex flex-col">
                     <div className="px-3 py-2 border-b border-[#A56E3F]/25 bg-[#FFF8E8] flex-shrink-0">
                       <p className="text-[12px] font-black text-[#6B4429]">中枢 Agent 执行摘要</p>
                       <p className="text-[10px] font-semibold text-cn-ink/55">观察、决策、工具调用与纠偏会实时显示在这里</p>
                     </div>
-                    <div className="flex-1 min-h-0 overflow-y-auto hide-scrollbar px-3 py-2 space-y-2">
+                    <div className="max-h-[52vh] agent-scroll px-3 py-2 space-y-2">
                       {agentTrace.length > 0 ? (
                         agentTrace.map((entry) => (
                           <div key={entry.id} className="border-l-2 border-[#A56E3F] pl-2">

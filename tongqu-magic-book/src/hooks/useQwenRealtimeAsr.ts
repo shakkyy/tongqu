@@ -34,6 +34,7 @@ function cleanupMic(handle: MicHandle | null) {
 export function useQwenRealtimeAsr(apiBase: string | undefined) {
   const [isListening, setIsListening] = useState(false);
   const [serviceReady, setServiceReady] = useState(false);
+  const [isFinalizing, setIsFinalizing] = useState(false);
   const [partial, setPartial] = useState("");
   const [confirmed, setConfirmed] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -114,6 +115,7 @@ export function useQwenRealtimeAsr(apiBase: string | undefined) {
     setPartial("");
     setConfirmed("");
     setIsListening(true);
+    setIsFinalizing(false);
     setServiceReady(false);
 
     let ws: WebSocket;
@@ -159,6 +161,7 @@ export function useQwenRealtimeAsr(apiBase: string | undefined) {
       }
       if (t === "error") {
         setError(String(msg.detail ?? "语音识别出错"));
+        setIsFinalizing(false);
         return;
       }
       if (t === "done") {
@@ -166,6 +169,7 @@ export function useQwenRealtimeAsr(apiBase: string | undefined) {
         micRef.current = null;
         setPartial("");
         setIsListening(false);
+        setIsFinalizing(false);
         setServiceReady(false);
         busyRef.current = false;
         if (wsRef.current === ws) {
@@ -200,6 +204,7 @@ export function useQwenRealtimeAsr(apiBase: string | undefined) {
     if (isListening) {
       cleanupMic(micRef.current);
       micRef.current = null;
+      setIsFinalizing(true);
       const ws = wsRef.current;
       if (ws?.readyState === WebSocket.OPEN) {
         try {
@@ -217,6 +222,7 @@ export function useQwenRealtimeAsr(apiBase: string | undefined) {
 
   return {
     isListening,
+    isFinalizing,
     serviceReady,
     partial,
     confirmed,

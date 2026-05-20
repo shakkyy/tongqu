@@ -5,7 +5,7 @@ export interface StoryPage {
   title: string;
   text: string;
   imageUrl: string;
-  /** 后端 NLS 返回的 data:audio/mpeg;base64,... */
+  /** 后端 CosyVoice 返回的 data:audio/...;base64,... */
   audioUrl?: string;
 }
 
