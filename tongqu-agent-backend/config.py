@@ -13,6 +13,15 @@ load_dotenv(Path(__file__).resolve().parent / ".env")
 class AppConfig:
     # ========== 绘本配图（文生图）==========
 
+    OPENAI_API_KEY: str | None = os.getenv("OPENAI_API_KEY")
+    OPENAI_BASE_URL: str | None = (
+        (os.getenv("OPENAI_BASE_URL") or "").strip().rstrip("/")
+        or None
+    )
+    OPENAI_MODEL: str | None = (os.getenv("OPENAI_MODEL") or "").strip() or None
+    OPENAI_TIMEOUT_SECONDS: float = float(os.getenv("OPENAI_TIMEOUT_SECONDS", "100"))
+    OPENAI_MAX_RETRIES: int = max(0, int(os.getenv("OPENAI_MAX_RETRIES", "0")))
+
     GOOGLE_API_KEY: str | None = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
     GEMINI_OPENAI_API_KEY: str | None = os.getenv("GEMINI_OPENAI_API_KEY")
     GEMINI_OPENAI_BASE_URL: str | None = os.getenv("GEMINI_OPENAI_BASE_URL")
@@ -22,7 +31,32 @@ class AppConfig:
     )
     IMAGE_GENERATION_CONCURRENCY: int = max(
         1,
-        int(os.getenv("IMAGE_GENERATION_CONCURRENCY", "3")),
+        int(os.getenv("IMAGE_GENERATION_CONCURRENCY", "5")),
+    )
+    RUN_ARTIFACTS_ENABLED: bool = (
+        (os.getenv("RUN_ARTIFACTS_ENABLED", "1").strip().lower())
+        not in {"0", "false", "no"}
+    )
+    RUN_ARTIFACT_DIR: str = os.getenv(
+        "RUN_ARTIFACT_DIR",
+        str(Path(__file__).resolve().parents[1] / "out" / "runs"),
+    )
+
+    # ========== 本地内容安全模型 ==========
+    CONTENT_SAFETY_GUARD_ENABLED: bool = (
+        (os.getenv("CONTENT_SAFETY_GUARD_ENABLED", "1").strip().lower())
+        not in {"0", "false", "no"}
+    )
+    CONTENT_SAFETY_GUARD_MODEL_PATH: str = os.getenv(
+        "CONTENT_SAFETY_GUARD_MODEL_PATH",
+        str(Path(__file__).resolve().parent / "models" / "Qwen3Guard-Gen-0.6B"),
+    )
+    CONTENT_SAFETY_GUARD_DEVICE: str = os.getenv("CONTENT_SAFETY_GUARD_DEVICE", "cpu")
+    CONTENT_SAFETY_GUARD_MAX_INPUT_TOKENS: int = int(
+        os.getenv("CONTENT_SAFETY_GUARD_MAX_INPUT_TOKENS", "4096")
+    )
+    CONTENT_SAFETY_GUARD_MAX_NEW_TOKENS: int = int(
+        os.getenv("CONTENT_SAFETY_GUARD_MAX_NEW_TOKENS", "128")
     )
 
     # ========== 阿里云百炼：故事文本 + 草图理解（千问 VL）==========
@@ -46,18 +80,12 @@ class AppConfig:
     DASHSCOPE_TTS_SAMPLE_RATE: int = int(os.getenv("DASHSCOPE_TTS_SAMPLE_RATE", "24000"))
     TTS_SYNTHESIS_CONCURRENCY: int = max(
         1,
-        int(os.getenv("TTS_SYNTHESIS_CONCURRENCY", "2")),
+        int(os.getenv("TTS_SYNTHESIS_CONCURRENCY", "5")),
     )
     DASHSCOPE_TTS_URL: str = (
         (os.getenv("DASHSCOPE_TTS_URL") or "").strip()
         or "https://dashscope.aliyuncs.com/api/v1/services/audio/tts/SpeechSynthesizer"
     )
-
-    ALIYUN_ACCESS_KEY_ID: str | None = os.getenv("ALIYUN_ACCESS_KEY_ID")
-    ALIYUN_ACCESS_KEY_SECRET: str | None = os.getenv("ALIYUN_ACCESS_KEY_SECRET")
-    ALIYUN_REGION: str = os.getenv("ALIYUN_REGION", "cn-shanghai")
-    GREEN_TEXT_SERVICE: str = os.getenv("GREEN_TEXT_SERVICE", "chat_detection_pro")
-    GREEN_IMAGE_SERVICE: str = os.getenv("GREEN_IMAGE_SERVICE", "baselineCheck")
 
     # ========== 中文风格关键词增强 ==========
     STYLE_KEYWORD_ENHANCER_ENABLED: bool = (

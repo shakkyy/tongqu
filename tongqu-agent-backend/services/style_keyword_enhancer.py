@@ -47,6 +47,7 @@ class EnhancementResult:
     rewritten_prompt: str
     normalized_style: str
     selected_keywords: list[str]
+    selected_fragments: list[str]
     used_model: bool
     model_error: str | None = None
 
@@ -91,6 +92,7 @@ class StyleKeywordEnhancer:
                 rewritten_prompt=original_prompt,
                 normalized_style=normalized_style,
                 selected_keywords=[],
+                selected_fragments=[],
                 used_model=False,
             )
 
@@ -101,11 +103,14 @@ class StyleKeywordEnhancer:
                 rewritten_prompt=original_prompt,
                 normalized_style=normalized_style,
                 selected_keywords=[],
+                selected_fragments=[],
                 used_model=False,
             )
 
         scored = self._score_candidates(original_prompt, normalized_style, candidates)
-        selected = [item["keyword"] for item in scored[: min(self._top_k, len(scored))]]
+        selected_items = scored[: min(self._top_k, len(scored))]
+        selected = [str(item["keyword"]) for item in selected_items]
+        selected_fragments = [self._candidate_fragment(item) for item in selected_items]
         rewritten_prompt = self._build_prompt(
             prompt=original_prompt,
             style=normalized_style,
@@ -116,6 +121,68 @@ class StyleKeywordEnhancer:
             rewritten_prompt=rewritten_prompt,
             normalized_style=normalized_style,
             selected_keywords=selected,
+            selected_fragments=selected_fragments,
+            used_model=bool(self._model_ready),
+            model_error=self._model_error,
+        )
+
+    def enhance_image_prompt(
+        self,
+        image_prompt: str,
+        style: str,
+        *,
+        context: str | None = None,
+        enabled: bool | None = None,
+    ) -> EnhancementResult:
+        """按用户已选风格，对单页英文生图 prompt 做 Top-K 风格词重排与注入。"""
+        original_prompt = (image_prompt or "").strip()
+        normalized_style = normalize_style(style)
+        enhancer_enabled = self._enabled if enabled is None else enabled
+        if not enhancer_enabled or not original_prompt:
+            return EnhancementResult(
+                original_prompt=original_prompt,
+                rewritten_prompt=original_prompt,
+                normalized_style=normalized_style,
+                selected_keywords=[],
+                selected_fragments=[],
+                used_model=False,
+            )
+
+        candidates = self._get_candidates(normalized_style)
+        if not candidates:
+            return EnhancementResult(
+                original_prompt=original_prompt,
+                rewritten_prompt=original_prompt,
+                normalized_style=normalized_style,
+                selected_keywords=[],
+                selected_fragments=[],
+                used_model=False,
+            )
+
+        ranking_prompt = "\n".join(
+            part for part in [(context or "").strip(), original_prompt] if part
+        )
+        scored = self._score_candidates(ranking_prompt, normalized_style, candidates)
+        selected_items = scored[: min(self._top_k, len(scored))]
+        selected_keywords = [str(item["keyword"]) for item in selected_items]
+        selected_fragments = [self._candidate_fragment(item) for item in selected_items]
+        fragment_text = ", ".join(selected_fragments)
+        rewritten_prompt = (
+            f"{original_prompt}, ranked {normalized_style} style guidance "
+            f"(reference only; keep the original scene content authoritative; "
+            f"do not add rain, mist, night, festival, stage, water, mountains, props, "
+            f"characters, text, symbols, or any new objects unless they already appear "
+            f"in the scene; ignore any style guidance fragment that conflicts with the "
+            f"visible scene): {fragment_text}"
+            if fragment_text
+            else original_prompt
+        )
+        return EnhancementResult(
+            original_prompt=original_prompt,
+            rewritten_prompt=rewritten_prompt,
+            normalized_style=normalized_style,
+            selected_keywords=selected_keywords,
+            selected_fragments=selected_fragments,
             used_model=bool(self._model_ready),
             model_error=self._model_error,
         )
@@ -130,6 +197,12 @@ class StyleKeywordEnhancer:
         style_data = self._bank.get("styles", {}).get(style, {})
         keywords = style_data.get("keywords", [])
         return [item for item in keywords if isinstance(item, dict) and item.get("keyword")]
+
+    def _candidate_fragment(self, candidate: dict[str, Any]) -> str:
+        fragment = str(candidate.get("prompt_en") or "").strip()
+        if fragment:
+            return fragment
+        return str(candidate.get("keyword") or "").strip()
 
     def _build_prompt(self, *, prompt: str, style: str, selected_keywords: list[str]) -> str:
         keyword_text = "、".join(selected_keywords) if selected_keywords else "无额外风格强化词"

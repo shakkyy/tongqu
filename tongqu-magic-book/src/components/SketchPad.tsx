@@ -45,7 +45,7 @@ const BRUSHES: { label: string; width: number }[] = [
 ];
 
 const W = 1000;
-const H = 600;
+const H = 625;
 const MAX_HISTORY = 35;
 
 function cloneImageData(src: ImageData): ImageData {
@@ -137,6 +137,160 @@ export const SketchPad = forwardRef<SketchPadHandle, SketchPadProps>(function Sk
     syncNav();
   }, [snapshot, syncNav]);
 
+  const drawDemoSketch = useCallback(() => {
+    if (isGenerating) return;
+    const ctx = getCtx();
+    if (!ctx) return;
+
+    const line = (points: Array<[number, number]>, stroke = "#1a1a2e", width = 5) => {
+      if (points.length < 2) return;
+      ctx.beginPath();
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = width;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.moveTo(points[0][0], points[0][1]);
+      for (const [x, y] of points.slice(1)) ctx.lineTo(x, y);
+      ctx.stroke();
+    };
+
+    const oval = (
+      x: number,
+      y: number,
+      rx: number,
+      ry: number,
+      stroke = "#1a1a2e",
+      width = 5,
+      fill?: string
+    ) => {
+      ctx.beginPath();
+      ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
+      if (fill) {
+        ctx.fillStyle = fill;
+        ctx.fill();
+      }
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = width;
+      ctx.stroke();
+    };
+
+    const rect = (
+      x: number,
+      y: number,
+      w: number,
+      h: number,
+      stroke = "#1a1a2e",
+      width = 5,
+      fill?: string
+    ) => {
+      ctx.beginPath();
+      ctx.rect(x, y, w, h);
+      if (fill) {
+        ctx.fillStyle = fill;
+        ctx.fill();
+      }
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = width;
+      ctx.stroke();
+    };
+
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, W, H);
+
+    // Simple childlike demo scene: Sun Wukong on a cloud with small animals in a mountain meadow.
+    ctx.beginPath();
+    ctx.moveTo(0, 535);
+    ctx.lineTo(160, 345);
+    ctx.lineTo(305, 535);
+    ctx.lineTo(455, 365);
+    ctx.lineTo(620, 535);
+    ctx.lineTo(1000, 535);
+    ctx.lineTo(1000, 625);
+    ctx.lineTo(0, 625);
+    ctx.closePath();
+    ctx.fillStyle = "#e9f5db";
+    ctx.fill();
+    ctx.strokeStyle = "#65a30d";
+    ctx.lineWidth = 6;
+    ctx.stroke();
+
+    for (const [x, y] of [
+      [90, 95],
+      [210, 130],
+      [745, 90],
+      [850, 145],
+    ]) {
+      oval(x, y, 42, 20, "#4cc9f0", 4, "#f0fbff");
+      oval(x + 36, y - 4, 34, 18, "#4cc9f0", 4, "#f0fbff");
+      oval(x + 70, y + 2, 40, 20, "#4cc9f0", 4, "#f0fbff");
+    }
+    line([[620, 110], [650, 88], [680, 110]], "#1a1a2e", 4);
+    line([[700, 132], [730, 108], [760, 132]], "#1a1a2e", 4);
+
+    line([[355, 190], [570, 82]], "#ffbe0b", 13);
+    line([[355, 190], [570, 82]], "#a16207", 6);
+    oval(416, 285, 56, 54, "#5d4037", 7, "#a16207");
+    oval(416, 300, 38, 34, "#1a1a2e", 5, "#f4a261");
+    oval(360, 292, 16, 20, "#5d4037", 5, "#f4a261");
+    oval(472, 292, 16, 20, "#5d4037", 5, "#f4a261");
+    line([[374, 253], [396, 236], [434, 236], [458, 253]], "#5d4037", 8);
+    line([[382, 272], [455, 272]], "#ffbe0b", 7);
+    line([[405, 260], [417, 248], [432, 260]], "#ffbe0b", 5);
+    oval(402, 297, 4, 5, "#1a1a2e", 3, "#1a1a2e");
+    oval(432, 297, 4, 5, "#1a1a2e", 3, "#1a1a2e");
+    line([[400, 322], [416, 332], [438, 320]], "#e63946", 4);
+    rect(376, 355, 88, 118, "#1a1a2e", 6, "#e63946");
+    rect(386, 386, 68, 24, "#ffbe0b", 5, "#ffbe0b");
+    line([[380, 370], [325, 338], [300, 360]], "#1a1a2e", 7);
+    line([[463, 370], [514, 324], [535, 338]], "#1a1a2e", 7);
+    line([[395, 473], [365, 530]], "#1a1a2e", 7);
+    line([[445, 473], [485, 528]], "#1a1a2e", 7);
+    line([[455, 430], [505, 430], [525, 455], [495, 475]], "#5d4037", 6);
+    oval(360, 545, 80, 30, "#4cc9f0", 6, "#f0fbff");
+    oval(430, 535, 90, 34, "#4cc9f0", 6, "#f0fbff");
+    oval(505, 548, 78, 28, "#4cc9f0", 6, "#f0fbff");
+
+    oval(705, 468, 54, 42, "#1a1a2e", 6, "#ffffff");
+    oval(675, 408, 30, 42, "#1a1a2e", 6, "#ffffff");
+    oval(658, 356, 12, 46, "#1a1a2e", 5, "#ffffff");
+    oval(688, 356, 12, 46, "#1a1a2e", 5, "#ffffff");
+    oval(665, 404, 4, 5, "#1a1a2e", 3, "#1a1a2e");
+    oval(684, 404, 4, 5, "#1a1a2e", 3, "#1a1a2e");
+    line([[666, 423], [676, 430], [687, 421]], "#e63946", 3);
+    line([[668, 470], [635, 508]], "#1a1a2e", 5);
+    line([[740, 470], [774, 508]], "#1a1a2e", 5);
+
+    oval(820, 456, 64, 40, "#1a1a2e", 6, "#f4a261");
+    oval(772, 418, 34, 34, "#1a1a2e", 6, "#f4a261");
+    line([[760, 385], [742, 358], [724, 372]], "#a16207", 5);
+    line([[778, 384], [794, 356], [814, 372]], "#a16207", 5);
+    oval(762, 414, 4, 5, "#1a1a2e", 3, "#1a1a2e");
+    oval(782, 414, 4, 5, "#1a1a2e", 3, "#1a1a2e");
+    line([[810, 493], [790, 552]], "#1a1a2e", 5);
+    line([[845, 492], [868, 552]], "#1a1a2e", 5);
+    line([[880, 448], [930, 420]], "#1a1a2e", 5);
+
+    for (const [x, y, c] of [
+      [120, 514, "#ffbe0b"],
+      [155, 500, "#e63946"],
+      [590, 520, "#f72585"],
+      [910, 505, "#8338ec"],
+    ] as Array<[number, number, string]>) {
+      oval(x, y, 14, 10, c, 4, c);
+      line([[x, y + 10], [x, y + 34]], "#65a30d", 3);
+    }
+
+    line([[55, 565], [945, 565]], "#65a30d", 6);
+    line([[85, 530], [115, 558], [145, 526], [172, 560]], "#65a30d", 4);
+    line([[595, 532], [625, 560], [655, 530], [684, 560]], "#65a30d", 4);
+
+    historyRef.current = [];
+    redoRef.current = [];
+    const s = snapshot();
+    if (s) historyRef.current.push(s);
+    syncNav();
+  }, [isGenerating, snapshot, syncNav]);
+
   useImperativeHandle(ref, () => ({
     getDataURL: () => {
       const canvas = canvasRef.current;
@@ -162,18 +316,13 @@ export const SketchPad = forwardRef<SketchPadHandle, SketchPadProps>(function Sk
     }
   }, [snapshot]);
 
-  /** 画布为 object-contain 时，实际绘制区小于元素框，需按内容区换算坐标 */
+  /** 可见画板整块映射到 canvas，避免只有 object-contain 的中间内容区可画。 */
   const getCanvasCoords = useCallback((clientX: number, clientY: number) => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
     const rect = canvas.getBoundingClientRect();
-    const scale = Math.min(rect.width / W, rect.height / H);
-    const displayW = W * scale;
-    const displayH = H * scale;
-    const offsetX = rect.left + (rect.width - displayW) / 2;
-    const offsetY = rect.top + (rect.height - displayH) / 2;
-    let x = ((clientX - offsetX) * W) / displayW;
-    let y = ((clientY - offsetY) * H) / displayH;
+    let x = ((clientX - rect.left) * W) / rect.width;
+    let y = ((clientY - rect.top) * H) / rect.height;
     x = Math.max(0, Math.min(W - 0.001, x));
     y = Math.max(0, Math.min(H - 0.001, y));
     return { x, y };
@@ -269,6 +418,16 @@ export const SketchPad = forwardRef<SketchPadHandle, SketchPadProps>(function Sk
           </button>
           <button
             type="button"
+            onClick={drawDemoSketch}
+            disabled={isGenerating}
+            title="显示一幅默认演示草图"
+            className="flex items-center gap-1 px-2 py-1 border-2 border-cn-ink rounded-lg bg-cn-yellow hover:bg-cn-red hover:text-white text-xs font-bold disabled:opacity-40"
+          >
+            <Wand2 className="w-3.5 h-3.5" />
+            演示
+          </button>
+          <button
+            type="button"
             onClick={clearCanvas}
             disabled={isGenerating}
             className="flex items-center gap-1 px-2 py-1 border-2 border-cn-ink rounded-lg bg-white hover:bg-cn-red hover:text-white text-xs font-bold"
@@ -359,7 +518,7 @@ export const SketchPad = forwardRef<SketchPadHandle, SketchPadProps>(function Sk
           ref={canvasRef}
           width={W}
           height={H}
-          className="w-full h-full object-contain touch-none"
+          className="absolute inset-0 w-full h-full touch-none"
           onMouseDown={startDrawing}
           onMouseUp={stopDrawing}
           onMouseOut={stopDrawing}

@@ -12,13 +12,170 @@
 from __future__ import annotations
 
 import asyncio
+import re
+import threading
 from dataclasses import dataclass, asdict
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Protocol
 
+from config import CONFIG
+
+
+_QWEN_GUARD_LOCK = threading.Lock()
+_QWEN_GUARD: "Qwen3GuardClassifier | None" = None
+
+
+def _rule_based_text_review(text: str) -> Dict[str, Any]:
+    high_risk_tokens = ["杀", "尸体", "仇恨", "报复", "霸凌", "恐怖"]
+    medium_tokens = ["争吵", "撒谎", "欺骗"]
+
+    hit_high = [t for t in high_risk_tokens if t in text]
+    hit_mid = [t for t in medium_tokens if t in text]
+    if hit_high:
+        return {
+            "passed": False,
+            "risk_level": "high",
+            "hits": hit_high,
+            "sentiment": "negative",
+            "provider": "local_rule",
+        }
+    if hit_mid:
+        return {
+            "passed": True,
+            "risk_level": "medium",
+            "hits": hit_mid,
+            "sentiment": "neutral",
+            "provider": "local_rule",
+        }
+    return {
+        "passed": True,
+        "risk_level": "low",
+        "hits": [],
+        "sentiment": "positive",
+        "provider": "local_rule",
+    }
+
+
+def parse_qwen3guard_output(raw: str) -> Dict[str, Any]:
+    text = raw or ""
+    safety_match = re.search(r"Safety:\s*(Safe|Unsafe|Controversial)", text, re.IGNORECASE)
+    safety = safety_match.group(1).capitalize() if safety_match else None
+    category_names = (
+        "Violent",
+        "Non-violent Illegal Acts",
+        "Sexual Content or Sexual Acts",
+        "PII",
+        "Personally Identifiable Information",
+        "Suicide & Self-Harm",
+        "Unethical Acts",
+        "Politically Sensitive Topics",
+        "Copyright Violation",
+        "Jailbreak",
+        "None",
+    )
+    categories: list[str] = []
+    for name in category_names:
+        if re.search(re.escape(name), text, re.IGNORECASE) and name not in categories:
+            categories.append(name)
+    if not categories:
+        category_line = re.search(r"Categories:\s*([^\n\r]+)", text, re.IGNORECASE)
+        if category_line:
+            categories = [part.strip() for part in re.split(r"[,;/，、]", category_line.group(1)) if part.strip()]
+
+    if safety == "Unsafe":
+        risk_level = "high"
+        passed = False
+        sentiment = "negative"
+    elif safety == "Controversial":
+        risk_level = "medium"
+        passed = True
+        sentiment = "neutral"
+    elif safety == "Safe":
+        risk_level = "low"
+        passed = True
+        sentiment = "positive"
+    else:
+        risk_level = "medium"
+        passed = True
+        sentiment = "neutral"
+
+    return {
+        "passed": passed,
+        "risk_level": risk_level,
+        "hits": [c for c in categories if c.lower() != "none"],
+        "sentiment": sentiment,
+        "provider": "qwen3guard",
+        "guard_label": safety,
+        "guard_categories": categories,
+        "raw": text.strip(),
+    }
+
+
+class Qwen3GuardClassifier:
+    def __init__(self, model_path: str, device: str) -> None:
+        self.model_path = model_path
+        self.device = device
+        self._infer_lock = threading.Lock()
+
+        from transformers import AutoModelForCausalLM, AutoTokenizer
+        import torch
+
+        if device == "auto":
+            device = "mps" if torch.backends.mps.is_available() else "cpu"
+        self.device = device
+        dtype = torch.float16 if device == "mps" else torch.float32
+        self.tokenizer = AutoTokenizer.from_pretrained(model_path, local_files_only=True)
+        self.model = AutoModelForCausalLM.from_pretrained(
+            model_path,
+            local_files_only=True,
+            torch_dtype=dtype,
+        )
+        self.model.to(device)
+        self.model.eval()
+
+    def classify_response(self, response: str) -> Dict[str, Any]:
+        import torch
+
+        messages = [
+            {"role": "user", "content": "请为3-10岁儿童创作一本温暖、安全、积极的绘本故事。"},
+            {"role": "assistant", "content": response},
+        ]
+        text = self.tokenizer.apply_chat_template(messages, tokenize=False)
+        inputs = self.tokenizer(
+            [text],
+            return_tensors="pt",
+            truncation=True,
+            max_length=CONFIG.CONTENT_SAFETY_GUARD_MAX_INPUT_TOKENS,
+        ).to(self.device)
+        with self._infer_lock, torch.no_grad():
+            outputs = self.model.generate(
+                **inputs,
+                max_new_tokens=CONFIG.CONTENT_SAFETY_GUARD_MAX_NEW_TOKENS,
+                do_sample=False,
+            )
+        output_ids = outputs[0][inputs["input_ids"].shape[-1]:]
+        raw = self.tokenizer.decode(output_ids, skip_special_tokens=True)
+        return parse_qwen3guard_output(raw)
+
+
+def _get_qwen_guard() -> Qwen3GuardClassifier | None:
+    global _QWEN_GUARD
+    model_path = Path(CONFIG.CONTENT_SAFETY_GUARD_MODEL_PATH)
+    if not model_path.is_absolute():
+        model_path = Path(__file__).resolve().parents[1] / model_path
+    if not CONFIG.CONTENT_SAFETY_GUARD_ENABLED or not model_path.exists():
+        return None
+    with _QWEN_GUARD_LOCK:
+        if _QWEN_GUARD is None:
+            _QWEN_GUARD = Qwen3GuardClassifier(
+                str(model_path),
+                CONFIG.CONTENT_SAFETY_GUARD_DEVICE,
+            )
+        return _QWEN_GUARD
 
 class ExternalImageSafetyAPI(Protocol):
-    """图像安全服务协议（阿里云/百度等）。"""
+    """图像安全服务协议，可按需接入第三方或私有服务。"""
 
     async def check(self, image_url: str) -> Dict[str, Any]:
         ...
@@ -37,8 +194,14 @@ class InterceptLog:
 class SafetyMiddleware:
     """可嵌入 Agent 流程的安全中间件。"""
 
-    def __init__(self, image_api: Optional[ExternalImageSafetyAPI] = None) -> None:
+    def __init__(
+        self,
+        image_api: Optional[ExternalImageSafetyAPI] = None,
+        *,
+        guard_enabled: bool | None = None,
+    ) -> None:
         self.image_api = image_api
+        self.guard_enabled = CONFIG.CONTENT_SAFETY_GUARD_ENABLED if guard_enabled is None else guard_enabled
         self._logs: List[InterceptLog] = []
         self.input_blacklist = {
             "violence": ["打架", "砍人", "爆炸", "复仇", "杀死", "血腥"],
@@ -80,23 +243,25 @@ class SafetyMiddleware:
     # ---------- 层3A：文本输出审核（BERT 分类位点） ----------
     async def review_text_with_bert(self, text: str) -> Dict[str, Any]:
         """
-        这里是“BERT 分类模型接口位点”：
-        - 生产环境可替换为 transformers/pipeline 或私有部署模型服务。
+        这里是“BERT/Guard 分类模型接口位点”：
+        - 当前优先走本地 Qwen3Guard-Gen-0.6B。
+        - 模型未启用、缺失或推理异常时，退回本地关键词规则。
         - 输出风险等级：low / medium / high
         """
+        if self.guard_enabled:
+            try:
+                guard = _get_qwen_guard()
+                if guard is not None:
+                    return await asyncio.to_thread(guard.classify_response, text)
+            except Exception as exc:  # noqa: BLE001
+                fallback = _rule_based_text_review(text)
+                fallback["provider"] = "local_rule_fallback"
+                fallback["model_error"] = str(exc)[:500]
+                return fallback
         await asyncio.sleep(0.01)
-        high_risk_tokens = ["杀", "尸体", "仇恨", "报复", "霸凌", "恐怖"]
-        medium_tokens = ["争吵", "撒谎", "欺骗"]
+        return _rule_based_text_review(text)
 
-        hit_high = [t for t in high_risk_tokens if t in text]
-        hit_mid = [t for t in medium_tokens if t in text]
-        if hit_high:
-            return {"passed": False, "risk_level": "high", "hits": hit_high, "sentiment": "negative"}
-        if hit_mid:
-            return {"passed": True, "risk_level": "medium", "hits": hit_mid, "sentiment": "neutral"}
-        return {"passed": True, "risk_level": "low", "hits": [], "sentiment": "positive"}
-
-    # ---------- 层3B：图像输出审核（阿里云/百度 API 位点） ----------
+    # ---------- 层3B：图像输出审核（可选第三方/私有 API 位点） ----------
     async def review_image(self, image_url: str) -> Dict[str, Any]:
         if self.image_api is not None:
             return await self.image_api.check(image_url)

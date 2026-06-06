@@ -1,7 +1,7 @@
 """
 童趣绘梦中枢 Agent：沙盒式 ReAct（Sandboxed ReAct + Function Calling）
 
-- 前置：filter_input；可选「风格关键词增强」（与 StorybookPipeline.run 逻辑对齐），再进入主循环。
+- 前置：filter_input 后进入主循环；可选「风格关键词增强」在后置生图前按页执行。
 - 核心：while 循环 + Qwen OpenAI 兼容 tools，由模型自主编排工具调用。
 - 后置：StorybookPipeline.finalize_from_structured（保留同伴的 style_keyword 元数据回传）。
 """
@@ -13,7 +13,7 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 from agent.tools import CharacterScriptEntry, StoryPlanningArgs, TongquToolHandlers
 from config import CONFIG
-from core.clients import ApiKeyError
+from core.clients import ApiKeyError, SKETCH_VL_USER_PROMPT
 from core.models import CreationSource, Scene
 from services.culture_rag import CultureHit, CultureRagService
 from services.sketch_service import SketchUnderstandingService
@@ -69,7 +69,7 @@ def _build_react_tools() -> list[dict[str, Any]]:
                     "properties": {
                         "core_keywords": {
                             "type": "string",
-                            "description": "应使用工作区提供的 safe_keywords（可能已含风格关键词增强）。",
+                            "description": "应使用工作区提供的 safe_keywords。",
                         },
                         "visual_semantics": {
                             "type": ["string", "null"],
@@ -174,6 +174,38 @@ def _build_react_tools() -> list[dict[str, Any]]:
                     "properties": {
                         "title": {"type": "string", "description": "故事标题（中文）。"},
                         "story_body_zh": {"type": "string", "description": "与分镜一致的故事全文。"},
+                        "character_script": {
+                            "type": "array",
+                            "description": "可选：来自 draft_story 的角色视觉锚点，供全书保持一致。",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "role": {"type": "string"},
+                                    "name": {"type": "string"},
+                                    "appearance_anchor_en": {"type": "string"},
+                                    "traits_zh": {"type": "string"},
+                                },
+                            },
+                        },
+                        "key_props": {
+                            "type": "array",
+                            "description": "可选：核心道具/物品视觉锚点，供全书保持一致。",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "name_zh": {"type": "string"},
+                                    "anchor_en": {"type": "string"},
+                                    "appears_in_scenes": {
+                                        "type": "array",
+                                        "items": {"type": "integer"},
+                                    },
+                                },
+                            },
+                        },
+                        "setting_anchor_en": {
+                            "type": "string",
+                            "description": "可选：主场景/空间关系英文视觉锚点。",
+                        },
                         "scenes": {
                             "type": "array",
                             "minItems": 8,
@@ -244,6 +276,9 @@ class TongquAgent:
         self._ctx_culture_context: str = ""
         self._ctx_culture_integration_note: str = ""
         self._ctx_culture_query: str = ""
+        self._ctx_character_script: list[dict[str, Any]] = []
+        self._ctx_key_props: list[dict[str, Any]] = []
+        self._ctx_setting_anchor_en: str = ""
 
     def _merge_agent_fields(
         self,
@@ -261,6 +296,7 @@ class TongquAgent:
         out["culture_hits"] = [hit.to_public_dict() for hit in self._ctx_culture_hits]
         out["culture_context"] = self._ctx_culture_context[:1200]
         out["culture_integration_note"] = self._ctx_culture_integration_note
+        out["visual_consistency"] = self._visual_consistency_payload()
         return out
 
     def _baseline_material_for_filter(self, keywords: str, sketch_text: str | None) -> str:
@@ -276,34 +312,20 @@ class TongquAgent:
         style: str,
         enable_style_keyword_enhancer: bool | None,
     ) -> tuple[bool, Dict[str, Any], str]:
-        """与 StorybookPipeline.run 中增强逻辑对齐；返回 (开关, enhancement 字典, 供 LLM 使用的素材字符串)。"""
-        normalized_style = self._story._normalize_style(style)
+        """返回 (开关, enhancement 字典, 供 LLM 使用的素材字符串)。"""
         enhancer_enabled = (
             CONFIG.STYLE_KEYWORD_ENHANCER_ENABLED
             if enable_style_keyword_enhancer is None
             else enable_style_keyword_enhancer
         )
-        if enhancer_enabled:
-            er = self._story.style_keyword_enhancer.enhance(
-                safe_keywords,
-                normalized_style,
-                enabled=True,
-            )
-            enhancement = {
-                "selected_keywords": er.selected_keywords,
-                "rewritten_prompt": er.rewritten_prompt,
-                "used_model": er.used_model,
-                "model_error": er.model_error,
-            }
-            material = er.rewritten_prompt
-        else:
-            enhancement = {
-                "selected_keywords": [],
-                "rewritten_prompt": safe_keywords,
-                "used_model": False,
-                "model_error": None,
-            }
-            material = safe_keywords
+        enhancement = {
+            "selected_keywords": [],
+            "rewritten_prompt": safe_keywords,
+            "used_model": False,
+            "model_error": None,
+            "image_prompt_enhancements": [],
+        }
+        material = safe_keywords
         return enhancer_enabled, enhancement, material
 
     def _culture_payload(self) -> dict[str, Any]:
@@ -312,6 +334,14 @@ class TongquAgent:
             "hits": [hit.to_api_dict() for hit in self._ctx_culture_hits],
             "culture_context": self._ctx_culture_context,
             "culture_integration_note": self._ctx_culture_integration_note,
+        }
+
+    def _visual_consistency_payload(self) -> dict[str, Any]:
+        return {
+            "characters": self._ctx_character_script,
+            "key_props": self._ctx_key_props,
+            "setting_anchor_en": self._ctx_setting_anchor_en,
+            "source_visual_semantics": self._ctx_visual_semantics,
         }
 
     def _retrieve_culture_for_query(self, query: str, top_k: int | None = None) -> dict[str, Any]:
@@ -341,6 +371,16 @@ class TongquAgent:
                 "vl_used": False,
                 "message": "无草图或未上传图片，可跳过本工具直接 draft_story。",
             }
+        if self._tool_handlers._run_recorder is not None:
+            self._tool_handlers._run_recorder.record(
+                "sketch_vl_request",
+                {
+                    "has_sketch_image": True,
+                    "sketch_text": self._ctx_sketch_text,
+                    "base_keywords": self._ctx_original_keywords,
+                    "vl_prompt": SKETCH_VL_USER_PROMPT,
+                },
+            )
         ctx = await self._sketch.build_keywords(
             base_keywords=self._ctx_original_keywords,
             sketch_image_base64=img,
@@ -348,6 +388,15 @@ class TongquAgent:
         )
         self._ctx_vl_used = ctx.vl_used
         self._ctx_visual_semantics = ctx.vl_understanding
+        if self._tool_handlers._run_recorder is not None:
+            self._tool_handlers._run_recorder.record(
+                "sketch_vl_response",
+                {
+                    "vl_used": ctx.vl_used,
+                    "visual_semantics": ctx.vl_understanding,
+                    "merged_keywords": ctx.merged_keywords,
+                },
+            )
         return {
             "visual_semantics": ctx.vl_understanding,
             "vl_used": ctx.vl_used,
@@ -393,6 +442,9 @@ class TongquAgent:
             style=style,
         )
         result = await self._tool_handlers.story_planning_tool(plan_args)
+        self._ctx_character_script = [item.model_dump() for item in result.character_script]
+        self._ctx_key_props = [item.model_dump() for item in result.key_props]
+        self._ctx_setting_anchor_en = (result.setting_anchor_en or "").strip()
         return result.model_dump()
 
     async def _tool_review_safety(self, args: dict[str, Any]) -> dict[str, Any]:
@@ -423,6 +475,8 @@ class TongquAgent:
         if not isinstance(raw_cs, list) or not raw_cs:
             raise ValueError("character_script 必须为非空数组")
         characters = [CharacterScriptEntry.model_validate(x) for x in raw_cs]
+        if not self._ctx_character_script:
+            self._ctx_character_script = [item.model_dump() for item in characters]
         board_args = StoryboardGenerationArgs(
             outline_zh=outline,
             character_script=characters,
@@ -439,6 +493,15 @@ class TongquAgent:
         raw_scenes = args.get("scenes")
         if not title or not story_body:
             raise ValueError("title 与 story_body_zh 不能为空")
+        raw_character_script = args.get("character_script")
+        if isinstance(raw_character_script, list) and raw_character_script:
+            self._ctx_character_script = [item for item in raw_character_script if isinstance(item, dict)]
+        raw_key_props = args.get("key_props")
+        if isinstance(raw_key_props, list):
+            self._ctx_key_props = [item for item in raw_key_props if isinstance(item, dict)]
+        raw_setting_anchor = args.get("setting_anchor_en")
+        if isinstance(raw_setting_anchor, str) and raw_setting_anchor.strip():
+            self._ctx_setting_anchor_en = raw_setting_anchor.strip()
         if not isinstance(raw_scenes, list) or not (8 <= len(raw_scenes) <= 10):
             raise ValueError("scenes 必须为 8～10 条")
         scenes: List[Scene] = []
@@ -491,6 +554,14 @@ class TongquAgent:
             else:
                 return json.dumps({"error": f"未知工具: {name}"}, ensure_ascii=False), None
         except Exception as exc:  # noqa: BLE001
+            if name == "draft_story" and type(exc).__name__ in {
+                "APITimeoutError",
+                "ReadTimeout",
+                "TimeoutError",
+            }:
+                raise RuntimeError(
+                    "故事策划文本模型超时，已停止本轮生成；不会使用兜底故事，也不会继续重复调用 draft_story。"
+                ) from exc
             return json.dumps(
                 {"error": type(exc).__name__, "detail": str(exc)[:800]},
                 ensure_ascii=False,
@@ -550,7 +621,9 @@ class TongquAgent:
         creation_source: CreationSource | str | None = None,
         enable_style_keyword_enhancer: bool | None = None,
         on_progress: ProgressReporter | None = None,
+        run_recorder: Any | None = None,
     ) -> Dict[str, Any]:
+        self._tool_handlers.set_run_recorder(run_recorder)
         src = (
             creation_source
             if isinstance(creation_source, CreationSource)
@@ -573,6 +646,7 @@ class TongquAgent:
                     "style_keyword_enhancer_enabled": False,
                     "style_keywords": [],
                     "enhanced_keywords_prompt": "",
+                    "image_prompt_enhancements": [],
                     "style_keyword_model_used": False,
                     "style_keyword_model_error": None,
                     "intercept_logs": self._story.safety_middleware.list_intercept_logs(),
@@ -599,6 +673,15 @@ class TongquAgent:
         baseline = self._baseline_material_for_filter(keywords, sketch_text)
         filtered = await self._story.safety_middleware.filter_input(baseline)
         safe_keywords = filtered["sanitized_keywords"]
+        if run_recorder is not None:
+            run_recorder.record(
+                "input_safety_filter",
+                {
+                    "baseline_material": baseline,
+                    "filtered": filtered,
+                    "safe_keywords": safe_keywords,
+                },
+            )
         await self._emit_agent_trace(
             on_progress,
             kind="decision",
@@ -630,6 +713,9 @@ class TongquAgent:
         self._ctx_culture_context = ""
         self._ctx_culture_integration_note = ""
         self._ctx_culture_query = ""
+        self._ctx_character_script = []
+        self._ctx_key_props = []
+        self._ctx_setting_anchor_en = ""
 
         workspace = {
             "style_slug": style,
@@ -656,6 +742,17 @@ class TongquAgent:
             {"role": "system", "content": _REACT_SYSTEM_PROMPT},
             {"role": "user", "content": user_intro},
         ]
+        if run_recorder is not None:
+            run_recorder.record(
+                "react_initial_messages",
+                {
+                    "workspace": workspace,
+                    "system_prompt": _REACT_SYSTEM_PROMPT,
+                    "user_intro": user_intro,
+                    "messages": messages,
+                    "tools_schema": self._tools_schema,
+                },
+            )
 
         finished: Optional[tuple[str, str, List[Scene]]] = None
         step = 0
@@ -663,6 +760,17 @@ class TongquAgent:
         try:
             while step < MAX_REACT_TURNS:
                 step += 1
+                if run_recorder is not None:
+                    run_recorder.record(
+                        "react_chat_completion_request",
+                        {
+                            "turn": step,
+                            "messages": messages,
+                            "tools": self._tools_schema,
+                            "tool_choice": "auto",
+                            "parallel_tool_calls": False,
+                        },
+                    )
                 resp = await llm.chat_completion(  # type: ignore[attr-defined]
                     messages=messages,
                     tools=self._tools_schema,
@@ -670,6 +778,12 @@ class TongquAgent:
                     parallel_tool_calls=False,
                 )
                 msg = resp.choices[0].message
+                assistant_dict = _assistant_message_to_dict(msg)
+                if run_recorder is not None:
+                    run_recorder.record(
+                        "react_chat_completion_response",
+                        {"turn": step, "assistant_message": assistant_dict},
+                    )
 
                 if not getattr(msg, "tool_calls", None):
                     await self._emit_agent_trace(
@@ -679,7 +793,7 @@ class TongquAgent:
                         detail="模型没有调用工具，系统已提醒它必须按 analyze/retrieve/draft/review/finish 的工具链继续。",
                         turn=step,
                     )
-                    messages.append(_assistant_message_to_dict(msg))
+                    messages.append(assistant_dict)
                     messages.append(
                         {
                             "role": "user",
@@ -688,7 +802,7 @@ class TongquAgent:
                     )
                     continue
 
-                messages.append(_assistant_message_to_dict(msg))
+                messages.append(assistant_dict)
 
                 for tc in msg.tool_calls:
                     name = tc.function.name
@@ -750,7 +864,28 @@ class TongquAgent:
                             "分镜确认完成，准备进入插图与语音制作",
                         )
                     raw_args = tc.function.arguments or "{}"
+                    if run_recorder is not None:
+                        run_recorder.record(
+                            "react_tool_call",
+                            {
+                                "turn": step,
+                                "tool_call_id": tc.id,
+                                "tool_name": name,
+                                "arguments_json": raw_args,
+                            },
+                        )
                     body, fin = await self._dispatch_tool(name, raw_args)
+                    if run_recorder is not None:
+                        run_recorder.record(
+                            "react_tool_result",
+                            {
+                                "turn": step,
+                                "tool_call_id": tc.id,
+                                "tool_name": name,
+                                "body": body,
+                                "finished": fin is not None,
+                            },
+                        )
                     try:
                         tool_payload = json.loads(body)
                     except json.JSONDecodeError:
@@ -821,6 +956,7 @@ class TongquAgent:
                     "style_keyword_enhancer_enabled": enhancer_enabled,
                     "style_keywords": enhancement.get("selected_keywords", []),
                     "enhanced_keywords_prompt": enhancement.get("rewritten_prompt", ""),
+                    "image_prompt_enhancements": enhancement.get("image_prompt_enhancements", []),
                     "style_keyword_model_used": enhancement.get("used_model", False),
                     "style_keyword_model_error": enhancement.get("model_error"),
                     "intercept_logs": self._story.safety_middleware.list_intercept_logs(),
@@ -844,6 +980,7 @@ class TongquAgent:
                     "style_keyword_enhancer_enabled": enhancer_enabled,
                     "style_keywords": enhancement.get("selected_keywords", []),
                     "enhanced_keywords_prompt": enhancement.get("rewritten_prompt", ""),
+                    "image_prompt_enhancements": enhancement.get("image_prompt_enhancements", []),
                     "style_keyword_model_used": enhancement.get("used_model", False),
                     "style_keyword_model_error": enhancement.get("model_error"),
                     "intercept_logs": self._story.safety_middleware.list_intercept_logs(),
@@ -868,6 +1005,7 @@ class TongquAgent:
                     "style_keyword_enhancer_enabled": enhancer_enabled,
                     "style_keywords": enhancement.get("selected_keywords", []),
                     "enhanced_keywords_prompt": enhancement.get("rewritten_prompt", ""),
+                    "image_prompt_enhancements": enhancement.get("image_prompt_enhancements", []),
                     "style_keyword_model_used": enhancement.get("used_model", False),
                     "style_keyword_model_error": enhancement.get("model_error"),
                     "intercept_logs": self._story.safety_middleware.list_intercept_logs(),
@@ -897,6 +1035,8 @@ class TongquAgent:
             enhancement=enhancement,
             enhancer_enabled=enhancer_enabled,
             on_progress=on_progress,
+            run_recorder=run_recorder,
+            visual_consistency=self._visual_consistency_payload(),
         )
         await self._emit_agent_trace(
             on_progress,

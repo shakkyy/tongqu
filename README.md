@@ -54,8 +54,8 @@ tongqu-projects/
   -> generate_storyboard 生成 3 到 4 个分镜
   -> finish_creation 提交结构化成稿
   -> Gemini 逐镜配图
-  -> 阿里云 NLS 合成朗读音频
-  -> Green / SafetyMiddleware 终审与价值观对齐
+  -> DashScope CosyVoice 合成朗读音频
+  -> 本地 SafetyMiddleware 终审与价值观对齐
   -> 返回绘本结果和文化发掘元数据
 ```
 
@@ -116,8 +116,8 @@ tongqu-projects/
 | 草图理解 | Qwen-VL |
 | 语音识别 | DashScope ASR WebSocket |
 | 插画生成 | Gemini Image |
-| 语音合成 | 阿里云 NLS |
-| 内容安全 | SafetyMiddleware、阿里云 Green |
+| 语音合成 | DashScope CosyVoice |
+| 内容安全 | SafetyMiddleware、本地文本风险检查 |
 | 文化检索 | Markdown frontmatter RAG |
 
 ## 快速开始
@@ -136,9 +136,6 @@ cp .env.example .env
 
 - `DASHSCOPE_API_KEY`
 - `DASHSCOPE_COMPAT_BASE_URL`
-- `ALIYUN_ACCESS_KEY_ID`
-- `ALIYUN_ACCESS_KEY_SECRET`
-- `ALIYUN_NLS_APPKEY`
 - `GOOGLE_API_KEY` 或 `GEMINI_OPENAI_API_KEY` / `GEMINI_OPENAI_BASE_URL`
 
 启动服务：
@@ -188,7 +185,7 @@ Content-Type: application/json
   "keywords": "月亮、小兔、想家",
   "style": "ink-wash",
   "creation_source": "keywords",
-  "enable_style_keyword_enhancer": false
+  "enable_style_keyword_enhancer": true
 }
 ```
 
@@ -221,6 +218,19 @@ Content-Type: application/json
   ],
   "image_urls": ["https://..."],
   "audio_urls": ["data:audio/mpeg;base64,..."],
+  "style_keywords": ["留白", "淡墨晕染", "宣纸质感"],
+  "image_prompt_enhancements": [
+    {
+      "scene_no": 1,
+      "style": "水墨",
+      "selected_keywords": ["留白", "淡墨晕染", "宣纸质感"],
+      "selected_fragments": [
+        "generous negative space",
+        "soft diluted ink wash diffusion",
+        "visible xuan paper texture"
+      ]
+    }
+  ],
   "culture_rag_used": true,
   "culture_hits": [
     {

@@ -165,7 +165,9 @@ export function StoryBookPanel({
         ) : null}
       </div>
 
-      <div className="flex-1 relative flex items-center justify-center bg-cn-paper/30 rounded-xl border-2 border-cn-ink/10 mb-3 overflow-hidden min-h-0">
+      <div
+        className="flex-1 relative flex items-center justify-center bg-cn-paper/30 rounded-xl border-2 border-cn-ink/10 mb-3 overflow-hidden min-h-0"
+      >
         <button
           type="button"
           onClick={handlePrev}
@@ -198,14 +200,14 @@ export function StoryBookPanel({
                 </span>
               </div>
 
-              <div className="absolute bottom-4 left-4 right-4 lg:left-8 lg:right-8 z-20">
-                <div className="bg-white/90 backdrop-blur-xl border-2 border-cn-ink rounded-2xl p-4 lg:p-5 shadow-2xl relative overflow-hidden group/textbox">
-                  <div className="absolute inset-1 border border-dashed border-cn-ink/10 rounded-xl pointer-events-none" />
+              <div className="absolute bottom-4 left-1/2 z-20 w-[calc(100%-2rem)] max-w-5xl -translate-x-1/2 lg:bottom-6">
+                <div className="bg-white/45 backdrop-blur-sm border-2 border-cn-ink/65 rounded-2xl p-3 lg:p-4 shadow-2xl relative overflow-hidden group/textbox">
+                  <div className="absolute inset-1 border border-dashed border-cn-ink/15 rounded-xl pointer-events-none" />
                   <div className="relative z-10 flex flex-col gap-2">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <div className="w-1.5 h-4 bg-cn-red rounded-full" />
-                        <span className="text-[10px] font-black text-cn-ink uppercase tracking-widest">灵语者</span>
+                        <span className="text-[10px] font-black text-cn-ink/90 uppercase tracking-widest">灵语者</span>
                       </div>
                       <button
                         type="button"
@@ -218,7 +220,7 @@ export function StoryBookPanel({
                     <div
                       contentEditable
                       suppressContentEditableWarning
-                      className="text-base lg:text-lg leading-relaxed text-cn-ink font-medium outline-none max-h-[4.5em] overflow-y-auto hide-scrollbar"
+                      className="text-base lg:text-lg leading-relaxed text-cn-ink font-medium outline-none max-h-[4.5em] overflow-y-auto hide-scrollbar drop-shadow-[0_1px_0_rgba(255,255,255,0.65)]"
                     >
                       {activePage.text}
                     </div>
@@ -412,7 +414,7 @@ export function StoryBookPanel({
                 key={page.id}
                 type="button"
                 onClick={() => setActiveIndex(idx)}
-                className={`relative flex-shrink-0 h-14 aspect-[4/3] border-2 rounded-lg overflow-hidden transition-all ${
+                className={`relative flex-shrink-0 h-14 aspect-[16/10] border-2 rounded-lg overflow-hidden transition-all ${
                   activeIndex === idx ? "border-cn-red shadow-sm scale-105 z-10" : "border-cn-ink opacity-60 hover:opacity-100"
                 }`}
               >
@@ -424,7 +426,7 @@ export function StoryBookPanel({
             ))}
             <button
               type="button"
-              className="flex-shrink-0 h-14 aspect-[4/3] border-2 border-dashed border-cn-ink/40 rounded-lg flex flex-col items-center justify-center text-cn-ink/50 hover:bg-cn-paper transition-colors"
+              className="flex-shrink-0 h-14 aspect-[16/10] border-2 border-dashed border-cn-ink/40 rounded-lg flex flex-col items-center justify-center text-cn-ink/50 hover:bg-cn-paper transition-colors"
             >
               <Plus className="w-5 h-5" />
             </button>

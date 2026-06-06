@@ -91,6 +91,7 @@ type StorybookCreateResponse = {
   culture_hits?: CultureHit[];
   culture_context?: string;
   culture_integration_note?: string;
+  image_prompt_enhancements?: unknown[];
 };
 
 function makeBookshelfFingerprint(title: string, pages: StoryPage[]): string {
@@ -415,6 +416,7 @@ export default function App() {
         return;
       }
       let finalData: StorybookCreateResponse | null = null;
+      let streamError: string | null = null;
       let buffered = "";
       const decoder = new TextDecoder("utf-8");
       const reader = res.body.getReader();
@@ -458,7 +460,7 @@ export default function App() {
           } else if (message.type === "result") {
             finalData = message.data ?? null;
           } else if (message.type === "error") {
-            setApiError(message.detail || message.error || "服务端流式生成失败");
+            streamError = message.detail || message.error || "服务端流式生成失败";
           }
         }
       }
@@ -469,7 +471,7 @@ export default function App() {
           if (message.type === "result") {
             finalData = message.data ?? finalData;
           } else if (message.type === "error") {
-            setApiError(message.detail || message.error || "服务端流式生成失败");
+            streamError = message.detail || message.error || "服务端流式生成失败";
           }
         } catch {
           // ignore malformed tail chunk
@@ -477,7 +479,7 @@ export default function App() {
       }
       const data = finalData;
       if (!data) {
-        setApiError("未收到后端结果，请重试");
+        setApiError(streamError ?? "未收到后端结果，请重试");
         if (creationMode === "sketch") setSketchSnapshotUrl(null);
         return;
       }

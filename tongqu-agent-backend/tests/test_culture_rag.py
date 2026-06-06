@@ -7,9 +7,11 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from agent.tongqu_agent import TongquAgent
+from core.models import Scene
 from core.safety import SafetyMiddleware
 from services.culture_rag import CultureRagService
 from services.sketch_service import SketchUnderstandingService
+from services.style_keyword_enhancer import StyleKeywordEnhancer
 from services.story_pipeline import StorybookPipeline
 
 
@@ -139,7 +141,7 @@ def build_agent(culture: CultureRagService, llm: FakeChatLlm) -> TongquAgent:
         image_client=FakeImageClient(),
         tts_client=FakeTtsClient(),
         safety_client=FakeSafetyClient(),
-        safety_middleware=SafetyMiddleware(),
+        safety_middleware=SafetyMiddleware(guard_enabled=False),
     )
     return TongquAgent(
         story_pipeline=pipeline,
@@ -149,6 +151,67 @@ def build_agent(culture: CultureRagService, llm: FakeChatLlm) -> TongquAgent:
 
 
 class CultureRagTests(unittest.TestCase):
+    def test_qwen3guard_parser_maps_unsafe_output(self) -> None:
+        from core.safety import parse_qwen3guard_output
+
+        parsed = parse_qwen3guard_output("Safety: Unsafe\nCategories: Violent")
+        self.assertFalse(parsed["passed"])
+        self.assertEqual(parsed["risk_level"], "high")
+        self.assertIn("Violent", parsed["hits"])
+
+    def test_style_keyword_enhancer_adds_english_fragments_to_image_prompt(self) -> None:
+        enhancer = StyleKeywordEnhancer(enabled=True, top_k=3)
+        result = enhancer.enhance_image_prompt(
+            "a small rabbit walking beside a rainy stone bridge, bamboo forest, no text, no letters, no watermark, no logo",
+            "ink-wash",
+            context="小兔子撑着荷叶伞，在雨后的石桥边慢慢走回家。",
+            enabled=True,
+        )
+        self.assertEqual(len(result.selected_keywords), 3)
+        self.assertEqual(len(result.selected_fragments), 3)
+        self.assertTrue(all(fragment for fragment in result.selected_fragments))
+        self.assertIn("ranked 水墨 style guidance", result.rewritten_prompt)
+
+    def test_visual_consistency_bible_is_injected_before_image_generation(self) -> None:
+        pipeline = StorybookPipeline(
+            llm_client=FakeChatLlm(),
+            image_client=FakeImageClient(),
+            tts_client=FakeTtsClient(),
+            safety_client=FakeSafetyClient(),
+            safety_middleware=SafetyMiddleware(guard_enabled=False),
+        )
+        scenes, records = pipeline._apply_visual_consistency_to_scenes(
+            [
+                Scene(
+                    scene_no=1,
+                    text="安安抱着电脑坐在窗边。",
+                    image_prompt="a child sitting beside a window with a laptop, no text, no letters, no watermark, no logo",
+                )
+            ],
+            {
+                "characters": [
+                    {
+                        "role": "主角",
+                        "name": "安安",
+                        "appearance_anchor_en": "a 6-year-old Chinese child wearing a green jacket",
+                    }
+                ],
+                "key_props": [
+                    {
+                        "name_zh": "笔记本电脑",
+                        "anchor_en": "a slim silver laptop with a rounded rectangle silhouette and no visible logo",
+                    }
+                ],
+                "setting_anchor_en": "a cozy bedroom with a round wooden desk by the window",
+            },
+        )
+        self.assertEqual(len(records), 1)
+        prompt = scenes[0].image_prompt
+        self.assertIn("CONSISTENT VISUAL BIBLE", prompt)
+        self.assertIn("a 6-year-old Chinese child wearing a green jacket", prompt)
+        self.assertIn("a slim silver laptop", prompt)
+        self.assertIn("PAGE-SPECIFIC SCENE", prompt)
+
     def test_moon_rabbit_homesick_retrieves_mid_autumn(self) -> None:
         hits = CultureRagService(CORPUS, embedding_enabled=False).retrieve("月亮、小兔、想家", top_k=3)
         self.assertTrue(any("嫦娥" in hit.title or "中秋" in " ".join(hit.visual_motifs) for hit in hits))

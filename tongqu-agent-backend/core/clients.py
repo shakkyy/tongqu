@@ -1,5 +1,5 @@
 """
-真实 API 客户端：DashScope Qwen / 千问 VL / CosyVoice TTS + 阿里云 Green（审核）。
+真实 API 客户端：DashScope Qwen / 千问 VL / CosyVoice TTS + Gemini 配图。
 
 绘本配图由 Gemini 文生图单独提供（见本文件内 GeminiImageClient）；密钥只从环境变量读取。
 """
@@ -28,15 +28,6 @@ except ImportError:  # pragma: no cover
     dashscope = None  # type: ignore
     Generation = None  # type: ignore
     MultiModalConversation = None  # type: ignore
-
-try:
-    from alibabacloud_green20220302.client import Client as Green20220302Client
-    from alibabacloud_green20220302 import models as green_models
-    from alibabacloud_tea_openapi import models as open_api_models
-except ImportError:  # pragma: no cover
-    Green20220302Client = None  # type: ignore
-    green_models = None  # type: ignore
-    open_api_models = None  # type: ignore
 
 from config import CONFIG
 
@@ -138,8 +129,11 @@ def _extract_vl_text(resp: Any) -> str:
     raise RuntimeError(f"千问 VL 返回无法解析: {resp}")
 
 
-_SKETCH_VL_USER_PROMPT = (
+SKETCH_VL_USER_PROMPT = (
     "请用中文简要描述这张儿童手绘草图里画了什么、可能表达的主题或情感。"
+    "优先保留画面中具体可见物体、角色、动作、空间关系和孩子写下的可辨识文字；"
+    "不要只抽象成主题，也不要把具体物体泛化丢失。"
+    "如果看起来像品牌、logo 或文字，只说明它代表的普通物体含义，后续绘图不要求复现品牌标识或文字。"
     "要求：5～10 句话，面向后续儿童绘本创作；避免技术术语；不要输出 JSON 或 Markdown 标题。"
 )
 
@@ -178,7 +172,7 @@ class DashScopeQwenVLClient:
                             "role": "user",
                             "content": [
                                 {"type": "image_url", "image_url": {"url": img}},
-                                {"type": "text", "text": _SKETCH_VL_USER_PROMPT},
+                                {"type": "text", "text": SKETCH_VL_USER_PROMPT},
                             ],
                         }
                     ],
@@ -214,7 +208,7 @@ class DashScopeQwenVLClient:
                         "role": "user",
                         "content": [
                             {"image": img},
-                            {"text": _SKETCH_VL_USER_PROMPT},
+                            {"text": SKETCH_VL_USER_PROMPT},
                         ],
                     }
                 ],
@@ -314,109 +308,114 @@ class DashScopeQwenClient:
         return await asyncio.to_thread(_call)
 
 
-class AliyunGreenSafetyClient:
-    """内容安全 Green：文本 + 图片 URL 审核。"""
+class OpenAITextClient:
+    """OpenAI 兼容文本模型：叙事生成 + Function Calling 调度。"""
 
     def __init__(
         self,
-        access_key_id: Optional[str] = None,
-        access_key_secret: Optional[str] = None,
-        region: Optional[str] = None,
+        api_key: Optional[str] = None,
+        base_url: Optional[str] = None,
+        model: Optional[str] = None,
+        timeout_seconds: Optional[float] = None,
     ) -> None:
-        self.access_key_id = access_key_id or CONFIG.ALIYUN_ACCESS_KEY_ID
-        self.access_key_secret = access_key_secret or CONFIG.ALIYUN_ACCESS_KEY_SECRET
-        self.region = region or CONFIG.ALIYUN_REGION
-        self._client = self._build_client()
+        self.api_key = api_key or CONFIG.OPENAI_API_KEY
+        self.base_url = (base_url or CONFIG.OPENAI_BASE_URL or "").strip().rstrip("/")
+        self.model = model or CONFIG.OPENAI_MODEL
+        self.timeout_seconds = timeout_seconds or CONFIG.OPENAI_TIMEOUT_SECONDS
+        self.max_retries = CONFIG.OPENAI_MAX_RETRIES
 
-    def _build_client(self) -> Any:
-        if Green20220302Client is None or open_api_models is None:
-            raise RuntimeError("请先安装 alibabacloud-green20220302 等依赖")
-        if not self.access_key_id or not self.access_key_secret:
-            raise ApiKeyError(API_KEY_ERROR)
-        cfg = open_api_models.Config(
-            access_key_id=self.access_key_id,
-            access_key_secret=self.access_key_secret,
-            region_id=self.region,
+    def _client(self) -> Any:
+        if not self.api_key:
+            raise ApiKeyError("OPENAI_API_KEY 未配置")
+        if not self.base_url:
+            raise RuntimeError("OPENAI_BASE_URL 未配置")
+        if not self.model:
+            raise RuntimeError("OPENAI_MODEL 未配置")
+        if OpenAI is None:
+            raise RuntimeError("请先安装 openai：pip install openai")
+        return OpenAI(
+            api_key=self.api_key,
+            base_url=self.base_url,
+            timeout=self.timeout_seconds,
+            max_retries=self.max_retries,
         )
-        cfg.endpoint = f"green.{self.region}.aliyuncs.com"
-        return Green20220302Client(cfg)
+
+    async def generate(self, prompt: str) -> str:
+        def _call() -> str:
+            client = self._client()
+            resp = client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "你是儿童绘本助手，只输出合法 JSON，不要输出多余解释。",
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+            )
+            text = (resp.choices[0].message.content or "").strip() if resp.choices else ""
+            if not text:
+                raise RuntimeError(f"OpenAI兼容文本生成返回为空: {resp}")
+            return text
+
+        return await asyncio.to_thread(_call)
+
+    async def chat_completion(
+        self,
+        *,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+        tool_choice: str | dict[str, Any] = "auto",
+        parallel_tool_calls: bool = False,
+    ) -> Any:
+        def _call() -> Any:
+            client = self._client()
+            params: dict[str, Any] = {
+                "model": self.model,
+                "messages": messages,
+                "tools": tools,
+                "tool_choice": tool_choice,
+            }
+            if parallel_tool_calls is not None:
+                params["parallel_tool_calls"] = parallel_tool_calls
+            try:
+                return client.chat.completions.create(**params)
+            except Exception as exc:
+                detail = str(exc)
+                if "parallel_tool_calls" in detail and "parallel_tool_calls" in params:
+                    params.pop("parallel_tool_calls", None)
+                    return client.chat.completions.create(**params)
+                raise
+
+        return await asyncio.to_thread(_call)
+
+
+class LocalSafetyClient:
+    """本地安全检查：不依赖云端内容安全服务。"""
 
     async def scan_text(self, text: str) -> Dict[str, Any]:
-        if not self.access_key_id or not self.access_key_secret:
-            raise ApiKeyError(API_KEY_ERROR)
-
-        def _call() -> Dict[str, Any]:
-            try:
-                # 文本审核增强版（需控制台开通对应服务）
-                req = green_models.TextModerationRequest(
-                    service=CONFIG.GREEN_TEXT_SERVICE,
-                    service_parameters=json.dumps({"content": text}, ensure_ascii=False),
-                )
-                resp = self._client.text_moderation(req)
-                body = resp.body if hasattr(resp, "body") else resp
-                data = body.to_map() if hasattr(body, "to_map") else {}
-            except Exception as exc:  # noqa: BLE001
-                err = str(exc).lower()
-                if "invalidaccesskeyid" in err or "signature" in err or "403" in err:
-                    raise ApiKeyError(API_KEY_ERROR) from exc
-                raise
-
-            # 简化解析：若存在建议拦截标签则判不通过
-            risk = "low"
-            passed = True
-            try:
-                result = data.get("Data") or data.get("data") or {}
-                labels = result.get("Result") or result.get("labels") or []
-                if isinstance(labels, list) and labels:
-                    for item in labels:
-                        lab = (item or {}).get("Label") or (item or {}).get("label")
-                        if lab and str(lab).lower() not in {"non_label", "normal"}:
-                            passed = False
-                            risk = "high"
-                            break
-            except Exception:
-                passed = True
-                risk = "low"
-
-            return {"passed": passed, "risk": risk, "raw": data}
-
-        return await asyncio.to_thread(_call)
+        high_risk_tokens = ["杀", "尸体", "仇恨", "报复", "霸凌", "恐怖", "血腥"]
+        medium_risk_tokens = ["争吵", "撒谎", "欺骗"]
+        high_hits = [token for token in high_risk_tokens if token in text]
+        medium_hits = [token for token in medium_risk_tokens if token in text]
+        if high_hits:
+            return {
+                "passed": False,
+                "risk": "high",
+                "raw": {"provider": "local", "hits": high_hits},
+            }
+        return {
+            "passed": True,
+            "risk": "medium" if medium_hits else "low",
+            "raw": {"provider": "local", "hits": medium_hits},
+        }
 
     async def scan_image(self, image_url: str) -> Dict[str, Any]:
-        if not self.access_key_id or not self.access_key_secret:
-            raise ApiKeyError(API_KEY_ERROR)
-        # Gemini 等返回 data:image/...;base64,...，Green 图片审核需可公网 URL，此处跳过机审。
-        if (image_url or "").strip().lower().startswith("data:"):
-            return {"passed": True, "risk": "low", "raw": {"skipped": "inline_data_url"}}
-
-        def _call() -> Dict[str, Any]:
-            try:
-                req = green_models.ImageModerationRequest(
-                    service=CONFIG.GREEN_IMAGE_SERVICE,
-                    service_parameters=json.dumps({"imageUrl": image_url}, ensure_ascii=False),
-                )
-                resp = self._client.image_moderation(req)
-                body = resp.body if hasattr(resp, "body") else resp
-                data = body.to_map() if hasattr(body, "to_map") else {}
-            except Exception as exc:  # noqa: BLE001
-                err = str(exc).lower()
-                if "invalidaccesskeyid" in err or "signature" in err or "403" in err:
-                    raise ApiKeyError(API_KEY_ERROR) from exc
-                raise
-
-            passed = True
-            risk = "low"
-            try:
-                result = data.get("Data") or data.get("data") or {}
-                if result.get("RiskLevel") in {"high", "medium"}:
-                    passed = False
-                    risk = str(result.get("RiskLevel"))
-            except Exception:
-                passed = True
-
-            return {"passed": passed, "risk": risk, "raw": data}
-
-        return await asyncio.to_thread(_call)
+        return {
+            "passed": True,
+            "risk": "low",
+            "raw": {"provider": "local", "note": "image scan skipped"},
+        }
 
     async def rewrite_to_safe(self, text: str) -> str:
         return f"（安全改写）我们把故事变得更温暖：{text[:200]}"
@@ -592,6 +591,22 @@ DEFAULT_STYLE = {
     "suffix": ", Keep a consistent children's book illustration style, no horror, no text, no letters, no watermark, no logo."
 }
 
+IMAGE_LAYOUT_PROMPT = (
+    "Landscape 16:10 aspect ratio for the final image, matched to the book viewer frame; "
+    "compose the full scene with important characters and props inside the safe center area, avoid edge cropping, "
+)
+
+
+def build_gemini_image_prompt(prompt: str, style: str) -> str:
+    style_config = STYLE_PROMPTS.get(style, DEFAULT_STYLE)
+    prefix = style_config["prefix"]
+    suffix = style_config["suffix"]
+    body = (prompt or "").strip()
+    if body.endswith((".", ",")):
+        body = body[:-1]
+    layout = "" if "16:10" in body or "16 by 10" in body.lower() else IMAGE_LAYOUT_PROMPT
+    return f"{prefix}{layout}{body}{suffix}".strip()
+
 
 def _require_genai() -> Any:
     if google_genai is None or genai_types is None:
@@ -649,6 +664,65 @@ def _parse_openai_image_content(content: Any) -> str:
     raise RuntimeError(f"OpenAI 兼容返回格式未识别: {type(content).__name__} {repr(content)[:300]}")
 
 
+def _parse_gemini_generate_content_image(resp: dict[str, Any]) -> str:
+    """从 Gemini generateContent JSON 响应中解析 inlineData / inline_data 图片。"""
+    candidates = resp.get("candidates")
+    if isinstance(candidates, list):
+        for candidate in candidates:
+            if not isinstance(candidate, dict):
+                continue
+            content = candidate.get("content") or {}
+            parts = content.get("parts") if isinstance(content, dict) else None
+            if not isinstance(parts, list):
+                continue
+            for part in parts:
+                if not isinstance(part, dict):
+                    continue
+                inline = part.get("inlineData") or part.get("inline_data")
+                if not isinstance(inline, dict):
+                    continue
+                data = inline.get("data")
+                if not isinstance(data, str) or not data.strip():
+                    continue
+                mime = inline.get("mimeType") or inline.get("mime_type") or "image/png"
+                return f"data:{mime};base64,{data.strip()}"
+    raise RuntimeError(f"Gemini generateContent 返回无法解析为图片: {repr(resp)[:500]}")
+
+
+def _generate_via_gemini_generate_content(full_prompt: str) -> str:
+    url = (CONFIG.GEMINI_OPENAI_BASE_URL or "").strip()
+    if not url:
+        raise RuntimeError("未配置 GEMINI_OPENAI_BASE_URL")
+    key = _openai_image_api_key()
+    payload = {
+        "contents": [
+            {
+                "role": "user",
+                "parts": [{"text": full_prompt}],
+            }
+        ],
+        "generationConfig": {
+            "responseModalities": ["TEXT", "IMAGE"],
+        },
+    }
+    resp = requests.post(
+        url,
+        headers={
+            "Authorization": f"Bearer {key}",
+            "Content-Type": "application/json",
+        },
+        json=payload,
+        timeout=90,
+    )
+    if resp.status_code >= 400:
+        raise RuntimeError(f"Gemini generateContent 调用失败 HTTP {resp.status_code}: {resp.text[:500]}")
+    try:
+        data = resp.json()
+    except ValueError as exc:
+        raise RuntimeError(f"Gemini generateContent 返回非 JSON: {resp.text[:500]}") from exc
+    return _parse_gemini_generate_content_image(data)
+
+
 def _generate_via_openai_compat(full_prompt: str) -> str:
     if OpenAI is None:
         raise RuntimeError("请先安装：pip install openai")
@@ -681,8 +755,8 @@ def _generate_via_google_genai(full_prompt: str) -> str:
     assert genai_types is not None
     
     # 预设配置：指定返回 IMAGE modality。
-    # 提示：如果是 Gemini 专属的 Imagen 3 模型 (如 imagen-3.0-generate-001)，
-    # 可以在此处或通过 kwargs 传入 aspect_ratio="4:3" 等参数来控制绘本比例。
+    # 提示：如果是 Gemini 专属的 Imagen 3 模型，可在此处或通过 kwargs
+    # 传入 aspect_ratio 等参数来控制绘本比例。
     cfg = genai_types.GenerateContentConfig(
         response_modalities=[genai_types.Modality.IMAGE],
     )
@@ -718,29 +792,29 @@ class GeminiImageClient:
     """文生图：返回 data:image/png;base64,... 供前端直接展示。"""
 
     async def generate_image(self, prompt: str, style: str) -> str:
-        # 获取风格配置
-        style_config = STYLE_PROMPTS.get(style, DEFAULT_STYLE)
-        prefix = style_config["prefix"]
-        suffix = style_config["suffix"]
-
-        # 清洗 Qwen 传来的 body
-        body = (prompt or "").strip()
-        if body.endswith((".", ",")):
-            body = body[:-1]
-
-        # 组装最终 prompt
-        full_prompt = f"{prefix}{body}{suffix}".strip()
+        full_prompt = build_gemini_image_prompt(prompt, style)
         
         # 记录日志，对 AIGC 画风调试极其重要
         logger.info(f"🎨 [Gemini 生图 Prompt] Style: {style} | Prompt: {full_prompt}")
 
         def _call() -> str:
             try:
-                if (CONFIG.GEMINI_OPENAI_BASE_URL or "").strip():
+                image_base = (CONFIG.GEMINI_OPENAI_BASE_URL or "").strip()
+                if image_base and (":generateContent" in image_base or "/v1beta/models/" in image_base):
+                    return _generate_via_gemini_generate_content(full_prompt)
+                if image_base:
                     return _generate_via_openai_compat(full_prompt)
                 return _generate_via_google_genai(full_prompt)
             except Exception as e:
                 logger.error(f"生图调用失败 | Error: {e} | Prompt: {full_prompt}")
+                err = str(e).lower()
+                if "model_not_found" in err or "no available channel" in err:
+                    base = (CONFIG.GEMINI_OPENAI_BASE_URL or "").strip() or "Google GenAI"
+                    raise RuntimeError(
+                        f"配图模型不可用：GEMINI_IMAGE_MODEL={CONFIG.GEMINI_IMAGE_MODEL}，"
+                        f"当前通道 {base} 未开通该模型。"
+                        "请在中转站文档中选用支持文生图的模型名，或配置 GOOGLE_API_KEY 直连 Google。"
+                    ) from e
                 raise
 
         return await asyncio.to_thread(_call)

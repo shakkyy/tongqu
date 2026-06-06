@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 
 from agent.tongqu_agent import build_default_tongqu_agent
 from config import CONFIG
+from services.run_artifacts import RunArtifactRecorder
 
 app = FastAPI(title="童趣绘梦 API", version="0.1.0")
 
@@ -48,15 +49,23 @@ class StorybookCreateRequest(BaseModel):
         default=None,
         description="创作来源，用于追踪：voice | keywords | sketch",
     )
-    enable_style_keyword_enhancer: bool = Field(
-        default=False,
-        description="是否启用中文风格关键词增强器，默认关闭",
+    enable_style_keyword_enhancer: bool | None = Field(
+        default=None,
+        description="是否启用按页生图风格关键词增强；不传时使用后端环境变量 STYLE_KEYWORD_ENHANCER_ENABLED",
     )
 
 
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/api/health/keys")
+async def health_keys() -> dict[str, Any]:
+    """探测各 API 密钥与连通性（不返回密钥明文）。本地排障用。"""
+    from services.api_health import check_all_services
+
+    return await check_all_services()
 
 
 @app.websocket("/api/asr/ws")
@@ -129,23 +138,44 @@ async def asr_realtime_ws(websocket: WebSocket) -> None:
 
 @app.post("/api/storybook/create")
 async def create_storybook(body: StorybookCreateRequest) -> dict:
+    recorder = RunArtifactRecorder.maybe_create(
+        creation_source=body.creation_source or "keywords",
+        style=body.style,
+    )
+    if recorder is not None:
+        recorder.record("http_request", body.model_dump())
     agent = build_default_tongqu_agent()
-    return await agent.run(
+    result = await agent.run(
         keywords=body.keywords,
         style=body.style,
         sketch_image_base64=body.sketch_image_base64,
         sketch_text=body.sketch_text,
         creation_source=body.creation_source,
         enable_style_keyword_enhancer=body.enable_style_keyword_enhancer,
+        run_recorder=recorder,
     )
+    if recorder is not None:
+        result["run_artifact_dir"] = str(recorder.run_dir)
+        result["run_artifact_file"] = str(recorder.run_file)
+        recorder.finish(result)
+    return result
 
 
 @app.post("/api/storybook/create/stream")
 async def create_storybook_stream(body: StorybookCreateRequest) -> StreamingResponse:
+    recorder = RunArtifactRecorder.maybe_create(
+        creation_source=body.creation_source or "keywords",
+        style=body.style,
+    )
+    if recorder is not None:
+        recorder.record("http_request", body.model_dump())
+
     async def stream() -> Any:
         queue: asyncio.Queue[dict] = asyncio.Queue()
 
         async def emit_stage(stage: dict) -> None:
+            if recorder is not None:
+                recorder.record("progress_event", stage)
             await queue.put({"type": "progress", "stage": stage})
 
         async def worker() -> None:
@@ -169,9 +199,20 @@ async def create_storybook_stream(body: StorybookCreateRequest) -> StreamingResp
                     creation_source=body.creation_source,
                     enable_style_keyword_enhancer=body.enable_style_keyword_enhancer,
                     on_progress=emit_stage,
+                    run_recorder=recorder,
                 )
+                if recorder is not None:
+                    result["run_artifact_dir"] = str(recorder.run_dir)
+                    result["run_artifact_file"] = str(recorder.run_file)
+                    recorder.finish(result)
                 await queue.put({"type": "result", "data": result})
             except Exception as exc:  # noqa: BLE001
+                if recorder is not None:
+                    recorder.record(
+                        "stream_error",
+                        {"error": "服务端流式生成失败", "detail": str(exc)},
+                    )
+                    recorder.finish({"ok": False, "error": "服务端流式生成失败", "detail": str(exc)})
                 await queue.put(
                     {
                         "type": "error",

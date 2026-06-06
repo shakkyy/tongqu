@@ -45,6 +45,15 @@ class CharacterScriptEntry(BaseModel):
     traits_zh: str = Field(..., description="性格与口吻（中文，短）")
 
 
+class VisualAnchorEntry(BaseModel):
+    name_zh: str = Field(..., description="核心物品或场景元素中文名")
+    anchor_en: str = Field(..., description="稳定复用的英文视觉锚点")
+    appears_in_scenes: list[int] = Field(
+        default_factory=list,
+        description="建议出现或需要保持一致的页码；为空表示出现时保持一致",
+    )
+
+
 class StoryPlanningArgs(BaseModel):
     core_keywords: str = Field(..., min_length=1, description="已过滤的安全素材")
     visual_semantics: str | None = Field(
@@ -89,6 +98,14 @@ class StoryPlanningResult(BaseModel):
         min_length=8,
         max_length=10,
         description="8-10 个连续绘本页面，含中文旁白与英文生图提示词",
+    )
+    key_props: list[VisualAnchorEntry] = Field(
+        default_factory=list,
+        description="核心道具/物品的英文视觉锚点，供全书生图复用",
+    )
+    setting_anchor_en: str = Field(
+        default="",
+        description="主场景/空间关系的英文视觉锚点，供跨页保持一致",
     )
 
 
@@ -166,6 +183,10 @@ def normalize_story_planning_payload(data: dict[str, Any]) -> dict[str, Any]:
     out = dict(data)
     out["outline_zh"] = _coerce_text(out.get("outline_zh"))
     out["story_body_zh"] = _coerce_text(out.get("story_body_zh"))
+    if not isinstance(out.get("key_props"), list):
+        out["key_props"] = []
+    if not isinstance(out.get("setting_anchor_en"), str):
+        out["setting_anchor_en"] = _coerce_text(out.get("setting_anchor_en"))
     return out
 
 
@@ -217,21 +238,30 @@ def build_story_planning_prompt(
    - name: 角色名（中文）
    - appearance_anchor_en: **英文**固定外观描述（如年龄、服饰颜色、发型），供生图复用
    - traits_zh: 性格特点（中文，短）
-4) positive_values: 字符串数组，列出本故事要体现的正向价值观（如 勇敢、友谊、合作）。
-5) story_body_zh: **完整故事正文**（中文），**650–900 个汉字**，与 outline_zh 一致、叙事连贯有结局。
-6) scenes: 数组，**8-10 条**，直接完成分镜拆页。每项含：
+4) key_props: 数组，列出全书必须保持一致的核心道具/物品。每项含：
+   - name_zh: 道具/物品中文名
+   - anchor_en: **英文**固定视觉锚点（颜色、形状、材质、尺寸、独特细节），后续相关 image_prompt_en 必须复用
+   - appears_in_scenes: 页码数组；不确定可为空
+5) setting_anchor_en: **英文**主场景/空间关系锚点，如主场景的布局、光线、背景元素；无固定场景可为空字符串。
+6) positive_values: 字符串数组，列出本故事要体现的正向价值观（如 勇敢、友谊、合作）。
+7) story_body_zh: **完整故事正文**（中文），**650–900 个汉字**，与 outline_zh 一致、叙事连贯有结局。
+8) scenes: 数组，**8-10 条**，直接完成分镜拆页。每项含：
    - scene_no: 从 1 递增
    - text_zh: 该页中文旁白（约 55-90 字），所有页面要串成一个连续的故事，不能各写各的
-   - image_prompt_en: **纯英文**生图提示词，只描述画面可见内容；必须包含 "no text, no letters, no watermark, no logo"
+   - image_prompt_en: **纯英文**生图提示词，只描述画面可见内容；必须包含 "Landscape 16:10 aspect ratio" 和 "no text, no letters, no watermark, no logo"
 
 语言要求：
 - 必须像 4-10 岁儿童绘本，句子短、意思直接、画面清楚。
 - 故事要像一本真正的 8-10 页绘本：每一页推进一个小动作或小发现，前后因果清楚，不要把几个互不相干的片段拼在一起。
 - 主角、重要配角和关键道具要稳定出现；不要一会儿换设定、一会儿换目标。
+- 如果「视觉语义」来自孩子草图，其中的具体可见物体、角色、动作和空间关系是内容锚点，不只是风格灵感。除非不安全或与核心素材明显冲突，否则必须自然进入故事起点，并在相关 scenes 的 image_prompt_en 中用普通英文物体词保留；不要把“笔记本电脑/苹果电脑/房子/河/船”等具体物体只改写成“科技/想象/节日”等抽象主题。
+- 如果草图里有品牌标识、logo 或文字，只保留它代表的普通物体语义；image_prompt_en 仍必须遵守 no text, no letters, no watermark, no logo。
 - 每页可承载 55-90 字旁白，因此正文要有足够细节：动作、场景、对话、情绪变化都要具体。
 - scenes 必须从 story_body_zh 中自然切分，不要新增与正文矛盾的情节。
-- image_prompt_en 必须保持角色一致：主角每页复用同一段 appearance_anchor_en；重要配角和关键道具出现时也复用固定特征。
-- image_prompt_en 要体现页面连续性：同一地点、同一道具、同一角色不要突然改变外观。
+- image_prompt_en 必须保持角色一致：主角每页复用同一段 appearance_anchor_en；重要配角出现时也复用固定特征。
+- image_prompt_en 必须保持核心道具一致：凡是 key_props 中的物品在某页出现，必须原样嵌入对应 anchor_en，不要换颜色、形状、材质、大小或装饰。
+- image_prompt_en 要体现页面连续性：同一地点、同一道具、同一角色不要突然改变外观；如仍在主场景中，应复用 setting_anchor_en。
+- image_prompt_en 必须明确要求 Landscape 16:10 aspect ratio，并把关键主体放在安全中心区域，避免边缘裁切。
 - 少用成语、古风词和成人文学化表达；避免“月华、窗棂、笑靥、刹那、银辉”等孩子不易理解的词。
 - 每个关键情节要让孩子能明白：谁在做什么、为什么做、结果怎样。
 - 温暖但不要晦涩，不要把故事写成散文诗。
@@ -318,6 +348,14 @@ class TongquToolHandlers:
     ) -> None:
         self._sketch = sketch_service
         self._pipeline = story_pipeline
+        self._run_recorder: Any | None = None
+
+    def set_run_recorder(self, recorder: Any | None) -> None:
+        self._run_recorder = recorder
+
+    def _record(self, stage: str, payload: Any) -> None:
+        if self._run_recorder is not None:
+            self._run_recorder.record(stage, payload)
 
     async def sketch_understanding_tool(
         self,
@@ -348,9 +386,20 @@ class TongquToolHandlers:
             system_safe_block=system_safe,
             style_cn=style_cn,
         )
+        self._record(
+            "story_planning_llm_request",
+            {
+                "args": args.model_dump(),
+                "correction_hint": correction_hint,
+                "style_cn": style_cn,
+                "prompt": prompt,
+            },
+        )
         raw = await self._pipeline.llm_client.generate(prompt)
+        self._record("story_planning_llm_response", {"raw": raw})
         data = parse_llm_json_object(raw)
         data = normalize_story_planning_payload(data)
+        self._record("story_planning_parsed", data)
         return StoryPlanningResult.model_validate(data)
 
     async def storyboard_generation_tool(
@@ -367,6 +416,17 @@ class TongquToolHandlers:
             system_safe_block=system_safe,
             style_cn=style_cn,
         )
+        self._record(
+            "storyboard_llm_request",
+            {
+                "args": args.model_dump(),
+                "correction_hint": correction_hint,
+                "style_cn": style_cn,
+                "prompt": prompt,
+            },
+        )
         raw = await self._pipeline.llm_client.generate(prompt)
+        self._record("storyboard_llm_response", {"raw": raw})
         data = parse_llm_json_object(raw)
+        self._record("storyboard_parsed", data)
         return StoryboardGenerationResult.model_validate(data)

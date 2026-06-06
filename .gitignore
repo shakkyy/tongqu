@@ -12,6 +12,7 @@ venv/
 *.egg-info/
 .pytest_cache/
 tongqu-agent-backend/models/
+tongqu-agent-backend/training/artifacts/
 
 # Node / 前端构建
 node_modules/
@@ -22,6 +23,7 @@ dist/
 *.log
 logs/
 tongqu-agent-backend/logs/
+out/runs/
 _last_run_output.txt
 _last_run_exit.txt
 
