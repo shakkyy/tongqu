@@ -55,6 +55,25 @@ class StorybookCreateRequest(BaseModel):
     )
 
 
+class StorybookRewritePageScene(BaseModel):
+    scene_no: int | None = Field(default=None, ge=1)
+    text: str = Field(..., min_length=1)
+    image_prompt: str | None = None
+
+
+class StorybookRewritePageRequest(BaseModel):
+    title: str = Field(..., min_length=1)
+    style: str = Field(
+        default="ink-wash",
+        description="paper-cut | ink-wash | shadow-puppet | comic",
+    )
+    page_index: int = Field(..., ge=0)
+    instruction: str = Field(..., min_length=1, max_length=500)
+    pages: list[StorybookRewritePageScene] = Field(..., min_length=1)
+    story_text: str | None = None
+    visual_consistency: dict[str, Any] | None = None
+
+
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
@@ -237,3 +256,50 @@ async def create_storybook_stream(body: StorybookCreateRequest) -> StreamingResp
                     await task
 
     return StreamingResponse(stream(), media_type="application/x-ndjson")
+
+
+@app.post("/api/storybook/rewrite-page")
+async def rewrite_storybook_page(body: StorybookRewritePageRequest) -> dict:
+    recorder = RunArtifactRecorder.maybe_create(
+        creation_source="rewrite-page",
+        style=body.style,
+    )
+    if recorder is not None:
+        recorder.record("http_request", body.model_dump())
+    try:
+        from core.models import Scene
+        from services.story_pipeline import build_default_story_pipeline
+
+        pipeline = build_default_story_pipeline()
+        scenes = [
+            Scene(
+                scene_no=item.scene_no or idx + 1,
+                text=item.text,
+                image_prompt=item.image_prompt or "",
+            )
+            for idx, item in enumerate(body.pages)
+        ]
+        result = await pipeline.rewrite_single_page(
+            title=body.title,
+            style=body.style,
+            page_index=body.page_index,
+            instruction=body.instruction,
+            pages=scenes,
+            story_text=body.story_text,
+            visual_consistency=body.visual_consistency or {},
+            run_recorder=recorder,
+        )
+        if recorder is not None:
+            result["run_artifact_dir"] = str(recorder.run_dir)
+            result["run_artifact_file"] = str(recorder.run_file)
+            recorder.finish(result)
+        return result
+    except Exception as exc:  # noqa: BLE001
+        result = {
+            "ok": False,
+            "error": "替换本页失败",
+            "detail": str(exc),
+        }
+        if recorder is not None:
+            recorder.finish(result)
+        return result

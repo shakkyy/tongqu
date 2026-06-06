@@ -591,9 +591,8 @@ DEFAULT_STYLE = {
     "suffix": ", Keep a consistent children's book illustration style, no horror, no text, no letters, no watermark, no logo."
 }
 
-IMAGE_LAYOUT_PROMPT = (
-    "Landscape 16:10 aspect ratio for the final image, matched to the book viewer frame; "
-    "compose the full scene with important characters and props inside the safe center area, avoid edge cropping, "
+IMAGE_COMPOSITION_PROMPT = (
+    "Compose the full scene with important characters and props inside the safe center area, avoid edge cropping, "
 )
 
 
@@ -604,8 +603,7 @@ def build_gemini_image_prompt(prompt: str, style: str) -> str:
     body = (prompt or "").strip()
     if body.endswith((".", ",")):
         body = body[:-1]
-    layout = "" if "16:10" in body or "16 by 10" in body.lower() else IMAGE_LAYOUT_PROMPT
-    return f"{prefix}{layout}{body}{suffix}".strip()
+    return f"{prefix}{IMAGE_COMPOSITION_PROMPT}{body}{suffix}".strip()
 
 
 def _require_genai() -> Any:
@@ -664,6 +662,17 @@ def _parse_openai_image_content(content: Any) -> str:
     raise RuntimeError(f"OpenAI 兼容返回格式未识别: {type(content).__name__} {repr(content)[:300]}")
 
 
+def _gemini_image_config_payload() -> dict[str, str]:
+    payload: dict[str, str] = {}
+    aspect_ratio = (CONFIG.GEMINI_IMAGE_ASPECT_RATIO or "").strip()
+    image_size = (CONFIG.GEMINI_IMAGE_SIZE or "").strip()
+    if aspect_ratio:
+        payload["aspectRatio"] = aspect_ratio
+    if image_size:
+        payload["imageSize"] = image_size
+    return payload
+
+
 def _parse_gemini_generate_content_image(resp: dict[str, Any]) -> str:
     """从 Gemini generateContent JSON 响应中解析 inlineData / inline_data 图片。"""
     candidates = resp.get("candidates")
@@ -694,6 +703,12 @@ def _generate_via_gemini_generate_content(full_prompt: str) -> str:
     if not url:
         raise RuntimeError("未配置 GEMINI_OPENAI_BASE_URL")
     key = _openai_image_api_key()
+    generation_config: dict[str, Any] = {
+        "responseModalities": ["TEXT", "IMAGE"],
+    }
+    image_config = _gemini_image_config_payload()
+    if image_config:
+        generation_config["imageConfig"] = image_config
     payload = {
         "contents": [
             {
@@ -701,9 +716,7 @@ def _generate_via_gemini_generate_content(full_prompt: str) -> str:
                 "parts": [{"text": full_prompt}],
             }
         ],
-        "generationConfig": {
-            "responseModalities": ["TEXT", "IMAGE"],
-        },
+        "generationConfig": generation_config,
     }
     resp = requests.post(
         url,
@@ -712,7 +725,7 @@ def _generate_via_gemini_generate_content(full_prompt: str) -> str:
             "Content-Type": "application/json",
         },
         json=payload,
-        timeout=90,
+        timeout=CONFIG.OPENAI_TIMEOUT_SECONDS,
     )
     if resp.status_code >= 400:
         raise RuntimeError(f"Gemini generateContent 调用失败 HTTP {resp.status_code}: {resp.text[:500]}")
@@ -754,11 +767,23 @@ def _generate_via_google_genai(full_prompt: str) -> str:
     client = _google_client()
     assert genai_types is not None
     
-    # 预设配置：指定返回 IMAGE modality。
-    # 提示：如果是 Gemini 专属的 Imagen 3 模型，可在此处或通过 kwargs
-    # 传入 aspect_ratio 等参数来控制绘本比例。
+    image_config = None
+    image_options = _gemini_image_config_payload()
+    if image_options:
+        image_kwargs: dict[str, str] = {}
+        annotations = getattr(genai_types.ImageConfig, "__annotations__", {})
+        if "aspect_ratio" in annotations and "aspectRatio" in image_options:
+            image_kwargs["aspect_ratio"] = image_options["aspectRatio"]
+        if "image_size" in annotations and "imageSize" in image_options:
+            image_kwargs["image_size"] = image_options["imageSize"]
+        if image_kwargs:
+            image_config = genai_types.ImageConfig(**image_kwargs)
+        elif "aspectRatio" in image_options:
+            image_config = genai_types.ImageConfig(aspect_ratio=image_options["aspectRatio"])
+
     cfg = genai_types.GenerateContentConfig(
         response_modalities=[genai_types.Modality.IMAGE],
+        image_config=image_config,
     )
     
     resp = client.models.generate_content(

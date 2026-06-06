@@ -26,19 +26,18 @@ from services.style_keyword_enhancer import StyleKeywordEnhancer
 
 ProgressReporter = Callable[[dict[str, Any]], Awaitable[None]]
 
-IMAGE_PROMPT_LAYOUT_FRAGMENT = (
-    "Landscape 16:10 aspect ratio for the final image, matched to the book viewer frame, "
-    "full scene composition with important characters and props inside the safe center area, avoid edge cropping."
+IMAGE_PROMPT_COMPOSITION_FRAGMENT = (
+    "Full scene composition with important characters and props inside the safe center area, avoid edge cropping."
 )
 
 
-def _ensure_image_prompt_layout(prompt: str) -> str:
+def _ensure_image_prompt_composition(prompt: str) -> str:
     body = (prompt or "").strip()
-    if "16:10" in body or "16 by 10" in body.lower():
+    if "safe center area" in body.lower() or "avoid edge cropping" in body.lower():
         return body
     if not body:
-        return IMAGE_PROMPT_LAYOUT_FRAGMENT
-    return f"{IMAGE_PROMPT_LAYOUT_FRAGMENT} {body}"
+        return IMAGE_PROMPT_COMPOSITION_FRAGMENT
+    return f"{IMAGE_PROMPT_COMPOSITION_FRAGMENT} {body}"
 
 
 class StorybookPipeline:
@@ -127,10 +126,14 @@ class StorybookPipeline:
             )
             await self._emit_progress(
                 on_progress,
-                "image",
-                "绘制插画场景",
-                f"开始为 {len(scenes)} 个分镜生成配图",
-                total=len(scenes),
+                "ranker",
+                "墨韵 Ranker",
+                (
+                    "正在按画风筛选每页视觉关键词"
+                    if enhancer_enabled
+                    else "风格关键词增强未启用，本轮登记后跳过"
+                ),
+                enabled=enhancer_enabled,
             )
             scenes, image_prompt_enhancements = self._enhance_scene_image_prompts(
                 scenes,
@@ -140,6 +143,13 @@ class StorybookPipeline:
             enhancement = self._merge_image_prompt_enhancement(
                 enhancement,
                 image_prompt_enhancements,
+            )
+            await self._emit_progress(
+                on_progress,
+                "image",
+                "绘制插画场景",
+                f"开始为 {len(scenes)} 个分镜生成配图",
+                total=len(scenes),
             )
             image_urls = await self._generate_images_with_retry(
                 scenes=scenes,
@@ -343,10 +353,14 @@ class StorybookPipeline:
 
             await self._emit_progress(
                 on_progress,
-                "image",
-                "绘制插画场景",
-                f"开始为 {len(scenes)} 个分镜生成配图",
-                total=len(scenes),
+                "ranker",
+                "墨韵 Ranker",
+                (
+                    "正在按画风筛选每页视觉关键词"
+                    if enhancer_enabled
+                    else "风格关键词增强未启用，本轮登记后跳过"
+                ),
+                enabled=enhancer_enabled,
             )
             scenes, image_prompt_enhancements = self._enhance_scene_image_prompts(
                 scenes,
@@ -373,6 +387,13 @@ class StorybookPipeline:
                         ],
                     },
                 )
+            await self._emit_progress(
+                on_progress,
+                "image",
+                "绘制插画场景",
+                f"开始为 {len(scenes)} 个分镜生成配图",
+                total=len(scenes),
+            )
             image_urls = await self._generate_images_with_retry(
                 scenes=scenes,
                 style=normalized_style,
@@ -517,6 +538,199 @@ class StorybookPipeline:
         }
         return mapping.get(style, "水墨")
 
+    def _build_page_rewrite_prompt(
+        self,
+        *,
+        title: str,
+        style: str,
+        page_index: int,
+        instruction: str,
+        pages: Sequence[Scene],
+        story_text: str | None,
+        visual_consistency: Dict[str, Any],
+    ) -> str:
+        safe_system = self.safety_middleware.build_safe_system_prompt(style=style)
+        page_lines = []
+        for idx, scene in enumerate(pages):
+            marker = " ← 当前替换页" if idx == page_index else ""
+            page_lines.append(
+                "\n".join(
+                    [
+                        f"{idx + 1}. {scene.text}{marker}",
+                        f"   image_prompt_en: {scene.image_prompt or '未保存'}",
+                    ]
+                )
+            )
+        prev_text = pages[page_index - 1].text if page_index > 0 else "无"
+        next_text = pages[page_index + 1].text if page_index + 1 < len(pages) else "无"
+        bible = json.dumps(visual_consistency or {}, ensure_ascii=False, indent=2)
+        return f"""
+{safe_system}
+
+你是“童趣绘梦”的单页替换子 Agent。任务是只替换绘本《{title}》的第 {page_index + 1} 页，不改其他页面。
+
+用户替换要求：
+{instruction}
+
+全书故事正文（仅供连续性参考）：
+{story_text or '未提供'}
+
+前一页旁白：
+{prev_text}
+
+后一页旁白：
+{next_text}
+
+全书页面上下文：
+{chr(10).join(page_lines)}
+
+视觉一致性 Bible（必须遵守；为空时沿用当前页 prompt 中已有设定）：
+{bible}
+
+硬性规则：
+1. 只输出一个 JSON 对象，不要 Markdown，不要解释。
+2. JSON 结构必须是 {{"text_zh": "...", "image_prompt_en": "..."}}。
+3. text_zh 为中文儿童绘本旁白，约 45-90 字，承接前后页，不改写其他页剧情。
+4. image_prompt_en 必须是英文，只描述画面可见内容；必须包含 no text, no letters, no watermark, no logo。
+5. 保持全书同一主角、配角、核心道具、场景锚点和插画风格，不要换角色版本或道具外观。
+6. 如果用户要求与角色/道具一致性冲突，在不违背用户核心意图的前提下保留一致性。
+7. 不要在 prompt 里写图像比例，图像比例由生图 API config 控制。
+""".strip()
+
+    async def rewrite_single_page(
+        self,
+        *,
+        title: str,
+        style: str,
+        page_index: int,
+        instruction: str,
+        pages: Sequence[Scene],
+        story_text: str | None = None,
+        visual_consistency: Dict[str, Any] | None = None,
+        run_recorder: Any | None = None,
+    ) -> Dict[str, Any]:
+        if not pages:
+            raise ValueError("pages 不能为空")
+        if page_index < 0 or page_index >= len(pages):
+            raise ValueError("page_index 超出页面范围")
+        filtered = await self.safety_middleware.filter_input(instruction)
+        if filtered.get("blocked"):
+            hits = "、".join(filtered.get("hits") or [])
+            raise ValueError(f"替换指令包含不适合儿童绘本的内容：{hits or '安全风险'}")
+
+        normalized_style = self._normalize_style(style)
+        visual_payload = visual_consistency or {}
+        prompt = self._build_page_rewrite_prompt(
+            title=title,
+            style=normalized_style,
+            page_index=page_index,
+            instruction=instruction,
+            pages=pages,
+            story_text=story_text,
+            visual_consistency=visual_payload,
+        )
+        if run_recorder is not None:
+            run_recorder.record(
+                "page_rewrite_llm_request",
+                {
+                    "title": title,
+                    "style": normalized_style,
+                    "page_index": page_index,
+                    "instruction": instruction,
+                    "prompt": prompt,
+                },
+            )
+
+        raw = await self.llm_client.generate(prompt)
+        if run_recorder is not None:
+            run_recorder.record("page_rewrite_llm_response", {"raw": raw})
+
+        try:
+            from agent.tools import parse_llm_json_object
+
+            data = parse_llm_json_object(raw)
+        except Exception as exc:  # noqa: BLE001
+            raise ValueError(f"单页替换模型返回不是合法 JSON：{raw[:300]}") from exc
+
+        text = str(data.get("text_zh") or data.get("text") or "").strip()
+        image_prompt = str(
+            data.get("image_prompt_en")
+            or data.get("image_prompt")
+            or data.get("prompt")
+            or ""
+        ).strip()
+        if not text or not image_prompt:
+            raise ValueError("单页替换结果缺少 text_zh 或 image_prompt_en")
+
+        scene_no = pages[page_index].scene_no or page_index + 1
+        scene = Scene(scene_no=scene_no, text=text, image_prompt=image_prompt)
+        text_review = await self.safety_client.scan_text(scene.text)
+        if not text_review.get("passed", False):
+            scene = Scene(
+                scene_no=scene.scene_no,
+                text=await self.safety_client.rewrite_to_safe(scene.text),
+                image_prompt=scene.image_prompt,
+            )
+
+        scenes_after_consistency, consistency_records = self._apply_visual_consistency_to_scenes(
+            [scene],
+            visual_payload,
+        )
+        scene = scenes_after_consistency[0]
+        scenes_after_enhancement, image_prompt_records = self._enhance_scene_image_prompts(
+            [scene],
+            style=normalized_style,
+            enabled=CONFIG.STYLE_KEYWORD_ENHANCER_ENABLED,
+        )
+        scene = scenes_after_enhancement[0]
+        if run_recorder is not None:
+            run_recorder.record(
+                "page_rewrite_prompt_final",
+                {
+                    "scene": {
+                        "scene_no": scene.scene_no,
+                        "text": scene.text,
+                        "image_prompt": scene.image_prompt,
+                    },
+                    "visual_consistency_records": consistency_records,
+                    "image_prompt_enhancements": image_prompt_records,
+                },
+            )
+
+        image_urls = await self._generate_images_with_retry(
+            [scene],
+            style=normalized_style,
+            run_recorder=run_recorder,
+        )
+        image_url = image_urls[0]
+        image_review = await self.safety_client.scan_image(image_url)
+        if not image_review.get("passed", False):
+            raise RuntimeError("替换页图片未通过安全审核")
+
+        audio_urls = await self._synthesize_all_scenes(
+            scenes=[scene],
+            voice="亲切姐姐",
+            run_recorder=run_recorder,
+        )
+        updated_story_text = "\n".join(
+            scene.text if idx == page_index else item.text
+            for idx, item in enumerate(pages)
+        )
+        return {
+            "ok": True,
+            "title": title,
+            "story_text": updated_story_text,
+            "scene": {
+                "scene_no": scene.scene_no,
+                "text": scene.text,
+                "image_prompt": scene.image_prompt,
+            },
+            "image_url": image_url,
+            "audio_url": audio_urls[0] if audio_urls else None,
+            "visual_consistency": visual_payload,
+            "intercept_logs": self.safety_middleware.list_intercept_logs(),
+        }
+
     async def _ensure_safe_text(self, text: str) -> str:
         result = await self.safety_client.scan_text(text)
         if result.get("passed", False):
@@ -555,7 +769,7 @@ class StorybookPipeline:
         run_recorder: Any | None = None,
     ) -> List[str]:
         async def _task(scene: Scene) -> str:
-            image_prompt = _ensure_image_prompt_layout(scene.image_prompt)
+            image_prompt = _ensure_image_prompt_composition(scene.image_prompt)
             last_error: Exception | None = None
             for attempt in range(MAX_IMAGE_RETRY + 1):
                 try:

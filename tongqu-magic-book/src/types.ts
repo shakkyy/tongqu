@@ -5,8 +5,17 @@ export interface StoryPage {
   title: string;
   text: string;
   imageUrl: string;
+  sceneNo?: number;
+  imagePrompt?: string;
   /** 后端 CosyVoice 返回的 data:audio/...;base64,... */
   audioUrl?: string;
+}
+
+export interface BookMeta {
+  title: string;
+  storyText?: string;
+  style?: StoryStyle;
+  visualConsistency?: Record<string, unknown>;
 }
 
 export interface CultureHit {

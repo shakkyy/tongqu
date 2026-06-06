@@ -71,7 +71,7 @@ body {
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: thin;
-    scrollbar-color: rgba(124, 78, 43, 0.55) rgba(243, 231, 207, 0.7);
+    scrollbar-color: rgba(124, 78, 43, 0.45) #ffffff;
   }
 
   .agent-scroll::-webkit-scrollbar {
@@ -79,12 +79,12 @@ body {
   }
 
   .agent-scroll::-webkit-scrollbar-track {
-    background: rgba(243, 231, 207, 0.7);
+    background: #ffffff;
     border-radius: 999px;
   }
 
   .agent-scroll::-webkit-scrollbar-thumb {
-    background: rgba(124, 78, 43, 0.55);
+    background: rgba(124, 78, 43, 0.45);
     border-radius: 999px;
   }
 

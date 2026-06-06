@@ -1,4 +1,4 @@
-import type { CultureRagInfo, StoryPage } from "../types";
+import type { BookMeta, CultureRagInfo, StoryPage } from "../types";
 
 export type BookshelfMode = "voice" | "keywords" | "sketch";
 
@@ -11,6 +11,7 @@ export interface BookshelfEntry {
   mode: BookshelfMode;
   sketchThumb?: string;
   culture?: CultureRagInfo;
+  bookMeta?: BookMeta;
   /** 完整分页，便于从书架重新打开 */
   pages: StoryPage[];
 }

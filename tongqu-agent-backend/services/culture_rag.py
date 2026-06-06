@@ -507,7 +507,7 @@ class CultureRagService:
                         f"- 核心思想：{hit.core_idea or '无'}",
                         f"- 儿童友好寓意：{hit.child_friendly_takeaway or '无'}",
                         f"- 可用视觉意象：{'、'.join(hit.visual_motifs) if hit.visual_motifs else '无'}",
-                        f"- 可改写方向：{'；'.join(hit.usable_story_seeds) if hit.usable_story_seeds else (hit.integration_prompt or '围绕用户输入轻量融入。')}",
+                        f"- 文化内核参考：{'；'.join(hit.usable_story_seeds) if hit.usable_story_seeds else (hit.integration_prompt or '围绕用户输入轻量融入核心价值。')}",
                         f"- 禁止照搬内容：{'；'.join(hit.avoid_direct_copy) if hit.avoid_direct_copy else '不要复述原故事情节、人物关系或原文表达。'}",
                         f"- 安全改写提示：{hit.safety_notes or '保留温暖、积极、儿童友好的表达。'}",
                     ]

@@ -44,8 +44,10 @@ const BRUSHES: { label: string; width: number }[] = [
   { label: "粗", width: 16 },
 ];
 
-const W = 1000;
-const H = 625;
+const W = 1024;
+const H = 576;
+const DEMO_W = 1000;
+const DEMO_H = 625;
 const MAX_HISTORY = 35;
 
 function cloneImageData(src: ImageData): ImageData {
@@ -128,8 +130,10 @@ export const SketchPad = forwardRef<SketchPadHandle, SketchPadProps>(function Sk
   const clearCanvas = useCallback(() => {
     const ctx = getCtx();
     if (!ctx) return;
+    ctx.save();
+    ctx.setTransform(W / DEMO_W, 0, 0, H / DEMO_H, 0, 0);
     ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, W, H);
+    ctx.fillRect(0, 0, DEMO_W, DEMO_H);
     historyRef.current = [];
     redoRef.current = [];
     const s = snapshot();
@@ -283,6 +287,7 @@ export const SketchPad = forwardRef<SketchPadHandle, SketchPadProps>(function Sk
     line([[55, 565], [945, 565]], "#65a30d", 6);
     line([[85, 530], [115, 558], [145, 526], [172, 560]], "#65a30d", 4);
     line([[595, 532], [625, 560], [655, 530], [684, 560]], "#65a30d", 4);
+    ctx.restore();
 
     historyRef.current = [];
     redoRef.current = [];

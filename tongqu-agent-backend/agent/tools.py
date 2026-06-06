@@ -248,7 +248,7 @@ def build_story_planning_prompt(
 8) scenes: 数组，**8-10 条**，直接完成分镜拆页。每项含：
    - scene_no: 从 1 递增
    - text_zh: 该页中文旁白（约 55-90 字），所有页面要串成一个连续的故事，不能各写各的
-   - image_prompt_en: **纯英文**生图提示词，只描述画面可见内容；必须包含 "Landscape 16:10 aspect ratio" 和 "no text, no letters, no watermark, no logo"
+   - image_prompt_en: **纯英文**生图提示词，只描述画面可见内容；必须包含 "no text, no letters, no watermark, no logo"
 
 语言要求：
 - 必须像 4-10 岁儿童绘本，句子短、意思直接、画面清楚。
@@ -261,7 +261,7 @@ def build_story_planning_prompt(
 - image_prompt_en 必须保持角色一致：主角每页复用同一段 appearance_anchor_en；重要配角出现时也复用固定特征。
 - image_prompt_en 必须保持核心道具一致：凡是 key_props 中的物品在某页出现，必须原样嵌入对应 anchor_en，不要换颜色、形状、材质、大小或装饰。
 - image_prompt_en 要体现页面连续性：同一地点、同一道具、同一角色不要突然改变外观；如仍在主场景中，应复用 setting_anchor_en。
-- image_prompt_en 必须明确要求 Landscape 16:10 aspect ratio，并把关键主体放在安全中心区域，避免边缘裁切。
+- image_prompt_en 必须把关键主体放在安全中心区域，避免边缘裁切；不要在 prompt 里写图像比例，比例由生图 API 配置控制。
 - 少用成语、古风词和成人文学化表达；避免“月华、窗棂、笑靥、刹那、银辉”等孩子不易理解的词。
 - 每个关键情节要让孩子能明白：谁在做什么、为什么做、结果怎样。
 - 温暖但不要晦涩，不要把故事写成散文诗。

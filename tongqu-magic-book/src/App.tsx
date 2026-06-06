@@ -14,12 +14,16 @@ import {
   type BookshelfEntry,
 } from "./lib/bookshelfStorage";
 import { buildKeywordsForApi, type KeywordSelectionPayload } from "./lib/keywordPayload";
-import type { AgentTraceEntry, CultureHit, CultureRagInfo, StoryPage, StoryStyle } from "./types";
+import type { AgentTraceEntry, BookMeta, CultureHit, CultureRagInfo, StoryPage, StoryStyle } from "./types";
 import { Sparkles, Wand2, Mic, Type, PenTool } from "lucide-react";
 
 const API_BASE = (import.meta as unknown as { env: Record<string, string | undefined> }).env
   .VITE_API_BASE_URL?.trim();
 
+const MOCK_GENERATION =
+  typeof window !== "undefined" && new URLSearchParams(window.location.search).get("mock") === "1";
+
+const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
 const OFFLINE_DEMO: StoryPage[] = [
   {
@@ -84,14 +88,32 @@ type StorybookCreateResponse = {
   error?: string;
   detail?: string;
   title?: string;
-  scenes?: { text: string }[];
+  story_text?: string;
+  scenes?: { scene_no?: number; text?: string; image_prompt?: string }[];
   image_urls?: string[];
   audio_urls?: string[];
+  visual_consistency?: Record<string, unknown>;
   culture_rag_used?: boolean;
   culture_hits?: CultureHit[];
   culture_context?: string;
   culture_integration_note?: string;
   image_prompt_enhancements?: unknown[];
+};
+
+type RewritePageResponse = {
+  ok?: boolean;
+  error?: string;
+  detail?: string;
+  title?: string;
+  story_text?: string;
+  scene?: {
+    scene_no?: number;
+    text?: string;
+    image_prompt?: string;
+  };
+  image_url?: string;
+  audio_url?: string;
+  visual_consistency?: Record<string, unknown>;
 };
 
 function makeBookshelfFingerprint(title: string, pages: StoryPage[]): string {
@@ -119,8 +141,10 @@ export default function App() {
     scene: { tags: [], custom: "" },
   }));
   const [remotePages, setRemotePages] = useState<StoryPage[] | null>(null);
+  const [bookMeta, setBookMeta] = useState<BookMeta | null>(null);
   const [cultureInfo, setCultureInfo] = useState<CultureRagInfo | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
+  const [rewritingPageIndex, setRewritingPageIndex] = useState<number | null>(null);
   const [sketchSnapshotUrl, setSketchSnapshotUrl] = useState<string | null>(null);
   const [sketchDescription, setSketchDescription] = useState("");
   const [lastBookSource, setLastBookSource] = useState<"voice" | "keywords" | "sketch" | null>(null);
@@ -219,6 +243,7 @@ export default function App() {
         mode: src,
         sketchThumb: lastBookSource === "sketch" ? sketchSnapshotUrl ?? undefined : undefined,
         culture: cultureInfo ?? undefined,
+        bookMeta: bookMeta ?? undefined,
         pages: remotePages.map((p) => ({ ...p })),
       });
       await refreshBookshelf();
@@ -227,7 +252,7 @@ export default function App() {
       console.warn("书架保存失败（可能超出浏览器存储上限）", err);
       setBookshelfNotice("添加失败：书架空间不足");
     }
-  }, [remotePages, lastBookSource, sketchSnapshotUrl, cultureInfo, refreshBookshelf]);
+  }, [remotePages, lastBookSource, sketchSnapshotUrl, cultureInfo, bookMeta, refreshBookshelf]);
 
   const onKeywordsChange = useCallback((p: KeywordSelectionPayload) => {
     setKeywordPayload(p);
@@ -258,6 +283,7 @@ export default function App() {
         { id: "culture", title: "检索文化语料", detail: "查找传统文化主题和儿童化改写线索" },
         { id: "draft", title: "撰写故事与分镜", detail: "生成故事正文并拆分为 8~10 个连续页面" },
         { id: "board", title: "整理分镜脚本", detail: "检查每页旁白、画面提示词与角色一致性" },
+        { id: "ranker", title: "墨韵 Ranker", detail: "按画风评估每页视觉关键词，未启用时登记跳过" },
         { id: "image", title: "绘制插画场景", detail: "按分镜逐页生成中国风配图" },
         { id: "tts", title: "合成朗读音频", detail: "为每页旁白生成温和朗读" },
         { id: "review", title: "安全审阅与润色", detail: "进行儿童安全复核与价值观对齐" },
@@ -269,6 +295,7 @@ export default function App() {
       { id: "culture", title: "检索文化语料", detail: "查找传统文化主题和儿童化改写线索" },
       { id: "draft", title: "撰写故事与分镜", detail: "生成故事正文并拆分为 8~10 个连续页面" },
       { id: "board", title: "整理分镜脚本", detail: "检查每页旁白、画面提示词与角色一致性" },
+      { id: "ranker", title: "墨韵 Ranker", detail: "按画风评估每页视觉关键词，未启用时登记跳过" },
       { id: "image", title: "绘制插画场景", detail: "按分镜逐页生成中国风配图" },
       { id: "tts", title: "合成朗读音频", detail: "为每页旁白生成温和朗读" },
       { id: "review", title: "安全审阅与润色", detail: "进行儿童安全复核与价值观对齐" },
@@ -340,6 +367,7 @@ export default function App() {
     setSketchSnapshotUrl(null);
     if (lastBookSource === "sketch") {
       setRemotePages(null);
+      setBookMeta(null);
       setCultureInfo(null);
       setLastBookSource(null);
     }
@@ -348,6 +376,10 @@ export default function App() {
 
   const openBookFromShelf = (entry: BookshelfEntry) => {
     setRemotePages(entry.pages.map((p) => ({ ...p })));
+    setBookMeta(entry.bookMeta ?? {
+      title: entry.title,
+      style: style,
+    });
     setCultureInfo(entry.culture ?? null);
     setActiveIndex(0);
     setLastBookSource(entry.mode);
@@ -355,9 +387,116 @@ export default function App() {
     setCreationMode(entry.mode);
   };
 
+  const runMockGeneration = async () => {
+    setIsGenerating(true);
+    setGenerationStageIndex(0);
+    setStageDetailOverrides({});
+    setAgentTrace([]);
+    setRemotePages(null);
+    setCultureInfo(null);
+    setBookMeta(null);
+    const traceByStage: Record<string, { kind: string; title: string; detail: string }> = {
+      queued: { kind: "observe", title: "理解输入", detail: "收到模拟素材，准备进入文化检索与故事编排。" },
+      sketch: { kind: "tool_call", title: "启动：草图理解子Agent", detail: "模拟读取孩子草图中的角色和场景。" },
+      culture: { kind: "tool_result", title: "完成：文化基因检索子Agent", detail: "提取核心价值：勇敢、互助、守信；只作为文化内核参考。" },
+      orchestrate: { kind: "decision", title: "安全预处理完成", detail: "输入素材可继续创作。" },
+      draft: { kind: "tool_call", title: "启动：故事撰写子Agent", detail: "一次生成标题、正文、角色设定与分页分镜。" },
+      board: { kind: "tool_result", title: "完成：分镜导演子Agent", detail: "整理每页旁白与画面提示词。" },
+      ranker: { kind: "tool_call", title: "墨韵 Ranker", detail: "模拟评估画风关键词；未启用时也记录为可观察步骤。" },
+      image: { kind: "tool_call", title: "启动：插画生成子Agent", detail: "模拟并发生成多页中国风配图。" },
+      tts: { kind: "tool_call", title: "启动：朗读合成子Agent", detail: "模拟为每页旁白合成温和朗读。" },
+      review: { kind: "finish", title: "汇总成书", detail: "所有页面已合并为一本可编辑绘本。" },
+    };
+    try {
+      for (let i = 0; i < generationStages.length; i += 1) {
+        const stage = generationStages[i];
+        setGenerationStageIndex(i);
+        setStageDetailOverrides((prev) => ({ ...prev, [stage.id]: stage.detail }));
+        const trace = traceByStage[stage.id];
+        if (trace) {
+          setAgentTrace((prev) => [
+            ...prev.slice(-24),
+            {
+              id: `mock-${stage.id}-${i}`,
+              ...trace,
+            },
+          ]);
+        }
+        await wait(520);
+      }
+      const title = "竹林小灯";
+      const pages: StoryPage[] = [
+        {
+          id: "mock-p1",
+          title,
+          sceneNo: 1,
+          text: "孙悟空带着小伙伴走进竹林，风吹过竹叶，像是在轻轻唱歌。",
+          imagePrompt: "A playful monkey in a quiet bamboo forest, no text, no letters, no watermark, no logo",
+          imageUrl: "/封面.png",
+        },
+        {
+          id: "mock-p2",
+          title: `${title} · 第2页`,
+          sceneNo: 2,
+          text: "小兔子发现一盏小灯笼，孙悟空把它挂到竹枝上，暖光照亮大家的脸。",
+          imagePrompt: "A playful monkey and a rabbit hanging a small lantern on bamboo, no text, no letters, no watermark, no logo",
+          imageUrl: "/封面.png",
+        },
+        {
+          id: "mock-p3",
+          title: `${title} · 第3页`,
+          sceneNo: 3,
+          text: "他们沿着灯光找到回家的小路，也学会了遇到困难要一起想办法。",
+          imagePrompt: "Children book scene of friends following warm lantern light through bamboo forest, no text, no letters, no watermark, no logo",
+          imageUrl: "/封面.png",
+        },
+      ];
+      setRemotePages(pages);
+      setBookMeta({
+        title,
+        style,
+        storyText: pages.map((p) => p.text).join("\n"),
+        visualConsistency: {
+          characters: [
+            {
+              role: "主角",
+              name: "孙悟空",
+              appearance_anchor_en: "A playful monkey with golden fur, wearing a red cape and a golden headband, small and agile.",
+            },
+          ],
+          key_props: [
+            {
+              name_zh: "小灯笼",
+              anchor_en: "A small round paper lantern with warm yellow glow and a red tassel.",
+            },
+          ],
+          setting_anchor_en: "A quiet bamboo forest with tall green bamboo stalks.",
+        },
+      });
+      setCultureInfo({
+        used: true,
+        hits: [
+          {
+            title: "西游记",
+            category: "经典人物",
+            score: 0.86,
+            core_idea: "勇敢、机智、守护伙伴",
+            child_friendly_takeaway: "遇到困难时和朋友一起想办法。",
+            visual_motifs: ["金箍", "竹林", "灯笼"],
+          },
+        ],
+        integrationNote: "仅吸收文化内核和视觉意象，不复刻原故事情节。",
+      });
+      setLastBookSource(creationMode === "sketch" ? "sketch" : creationMode === "keywords" ? "keywords" : "voice");
+      setActiveIndex(0);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   const handleGenerate = async () => {
     setApiError(null);
-    if (!API_BASE) {
+    if (!API_BASE && !MOCK_GENERATION) {
       setApiError("未配置 VITE_API_BASE_URL。请在 tongqu-magic-book/.env 中设置，例如 http://127.0.0.1:8000 后重启 npm run dev。");
       return;
     }
@@ -376,12 +515,17 @@ export default function App() {
 
     if (creationMode === "voice") {
       const t = voiceEditedText.trim();
-      if (!t) {
+      if (!t && !MOCK_GENERATION) {
         setApiError(
           "请先完成语音识别（或直接在下方文本框输入灵感），再点「开始变魔术」。",
         );
         return;
       }
+    }
+
+    if (MOCK_GENERATION) {
+      await runMockGeneration();
+      return;
     }
 
     setIsGenerating(true);
@@ -398,7 +542,7 @@ export default function App() {
           : creationMode === "keywords"
             ? buildKeywordsForApi(keywordPayload)
             : voiceEditedText.trim();
-      const base = API_BASE.replace(/\/$/, "");
+      const base = (API_BASE ?? "").replace(/\/$/, "");
       const res = await fetch(`${base}/api/storybook/create/stream`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -495,11 +639,19 @@ export default function App() {
         const pages: StoryPage[] = scenes.slice(0, n).map((s, i) => ({
           id: `p${i + 1}`,
           title: i === 0 ? data.title! : `${data.title} · 第${i + 1}页`,
-          text: s.text,
+          text: s.text || "",
           imageUrl: imgs[i] ?? "",
+          sceneNo: scenes[i]?.scene_no ?? i + 1,
+          imagePrompt: scenes[i]?.image_prompt,
           audioUrl: data.audio_urls?.[i],
         }));
         setRemotePages(pages);
+        setBookMeta({
+          title: data.title!,
+          storyText: data.story_text,
+          style,
+          visualConsistency: data.visual_consistency,
+        });
         setCultureInfo({
           used: Boolean(data.culture_rag_used),
           hits: data.culture_hits ?? [],
@@ -520,6 +672,116 @@ export default function App() {
       if (creationMode === "sketch") setSketchSnapshotUrl(null);
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  const handleRewritePage = async (pageIndex: number, instruction: string): Promise<boolean> => {
+    setApiError(null);
+    if (!API_BASE && !MOCK_GENERATION) {
+      setApiError("未配置 VITE_API_BASE_URL，无法替换本页。");
+      return false;
+    }
+    if (!remotePages?.length) {
+      setApiError("还没有可替换的真实绘本页面。");
+      return false;
+    }
+    const current = remotePages[pageIndex];
+    if (!current) {
+      setApiError("当前页不存在，无法替换。");
+      return false;
+    }
+    const trimmed = instruction.trim();
+    if (!trimmed) {
+      setApiError("请输入要替换成什么内容。");
+      return false;
+    }
+    setRewritingPageIndex(pageIndex);
+    if (MOCK_GENERATION) {
+      try {
+        await wait(700);
+        const nextText = `这一页改成：${trimmed} 孩子和家长可以继续一起调整，让故事更像自己的冒险。`;
+        setRemotePages((prev) => {
+          if (!prev) return prev;
+          return prev.map((page, idx) =>
+            idx === pageIndex
+              ? {
+                  ...page,
+                  text: nextText,
+                  imagePrompt: `${trimmed}, Chinese children's picture book style, no text, no letters, no watermark, no logo`,
+                }
+              : page,
+          );
+        });
+        setBookMeta((prev) => ({
+          title: prev?.title || remotePages[0]?.title.split("·")[0]?.trim() || "童趣绘本",
+          style: prev?.style || style,
+          storyText: remotePages.map((page, idx) => (idx === pageIndex ? nextText : page.text)).join("\n"),
+          visualConsistency: prev?.visualConsistency,
+        }));
+        return true;
+      } finally {
+        setRewritingPageIndex(null);
+      }
+    }
+    try {
+      const title = bookMeta?.title || remotePages[0]?.title.split("·")[0]?.trim() || "童趣绘本";
+      const base = (API_BASE ?? "").replace(/\/$/, "");
+      const res = await fetch(`${base}/api/storybook/rewrite-page`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title,
+          style: bookMeta?.style || style,
+          page_index: pageIndex,
+          instruction: trimmed,
+          story_text: bookMeta?.storyText,
+          visual_consistency: bookMeta?.visualConsistency,
+          pages: remotePages.map((page, idx) => ({
+            scene_no: page.sceneNo ?? idx + 1,
+            text: page.text,
+            image_prompt: page.imagePrompt,
+          })),
+        }),
+      });
+      const data = (await res.json().catch(() => null)) as RewritePageResponse | null;
+      if (!res.ok || !data?.ok) {
+        setApiError(data?.detail || data?.error || `替换失败（HTTP ${res.status}）`);
+        return false;
+      }
+      const scene = data.scene;
+      if (!scene?.text || !data.image_url) {
+        setApiError("替换接口返回数据不完整（缺少旁白或图片）。");
+        return false;
+      }
+      setRemotePages((prev) => {
+        if (!prev) return prev;
+        return prev.map((page, idx) =>
+          idx === pageIndex
+            ? {
+                ...page,
+                text: scene.text!,
+                imageUrl: data.image_url!,
+                audioUrl: data.audio_url,
+                sceneNo: scene.scene_no ?? page.sceneNo ?? idx + 1,
+                imagePrompt: scene.image_prompt ?? page.imagePrompt,
+              }
+            : page,
+        );
+      });
+      setBookMeta((prev) => ({
+        title,
+        style: prev?.style || style,
+        storyText: data.story_text || prev?.storyText,
+        visualConsistency: data.visual_consistency || prev?.visualConsistency,
+      }));
+      setActiveIndex(pageIndex);
+      return true;
+    } catch (e) {
+      console.error(e);
+      setApiError(e instanceof Error ? e.message : "替换本页失败，请确认后端已启动");
+      return false;
+    } finally {
+      setRewritingPageIndex(null);
     }
   };
 
@@ -763,6 +1025,8 @@ export default function App() {
               agentTrace={agentTrace}
               culture={cultureInfo}
               onSpeakPage={(i) => autoPlayPage(i)}
+              onRewritePage={remotePages ? handleRewritePage : undefined}
+              rewritingPageIndex={rewritingPageIndex}
               onAddToBookshelf={canAddToShelf ? () => void handleAddToBookshelf() : undefined}
             />
           )}

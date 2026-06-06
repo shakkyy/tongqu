@@ -29,6 +29,13 @@ class AppConfig:
         "GEMINI_IMAGE_MODEL",
         "gemini-2.0-flash-preview-image-generation",
     )
+    GEMINI_IMAGE_ASPECT_RATIO: str = (
+        (os.getenv("GEMINI_IMAGE_ASPECT_RATIO") or "16:9").strip()
+    )
+    GEMINI_IMAGE_SIZE: str | None = (
+        (os.getenv("GEMINI_IMAGE_SIZE") or "1K").strip()
+        or None
+    )
     IMAGE_GENERATION_CONCURRENCY: int = max(
         1,
         int(os.getenv("IMAGE_GENERATION_CONCURRENCY", "5")),
