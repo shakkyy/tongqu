@@ -137,6 +137,29 @@ SKETCH_VL_USER_PROMPT = (
     "要求：5～10 句话，面向后续儿童绘本创作；避免技术术语；不要输出 JSON 或 Markdown 标题。"
 )
 
+FAMILY_PHOTO_VL_USER_PROMPT = """
+你是儿童绘本产品的亲子合照安全审核与角色锚点提取助手。请严格只输出一个 JSON 对象，不要 Markdown。
+
+安全审核标准：
+- 如果图片包含明显裸露、性暗示、暴力、受伤、血腥、危险行为、仇恨符号、成人不雅内容，safe 必须为 false。
+- 如果图片包含身份证件、手机号、地址、学校班级、车牌、二维码等可识别隐私信息，safe 必须为 false。
+- 不要识别真实人物身份，不要推断姓名、年龄、职业、住址或其他敏感身份。
+
+通过时，请只提取适合儿童绘本的非敏感视觉锚点：大致人数、亲子关系氛围、服装主色、发型轮廓、表情气质、可安全泛化的亲子互动。不要要求复刻真实人脸。
+
+JSON schema:
+{
+  "safe": true,
+  "risk_reason": "",
+  "family_summary_zh": "适合后续创作的中文照片理解，3-5句",
+  "character_anchors_en": [
+    "child character: non-photorealistic picture-book avatar, ...",
+    "parent character: non-photorealistic picture-book avatar, ..."
+  ],
+  "story_seed_zh": "把这组亲子角色穿越到古代中国传统故事中的安全创作建议，1-2句"
+}
+""".strip()
+
 
 class DashScopeQwenVLClient:
     """
@@ -148,12 +171,12 @@ class DashScopeQwenVLClient:
         self.api_key = api_key or CONFIG.DASHSCOPE_API_KEY
         self.model = model or CONFIG.QWEN_VL_MODEL
 
-    async def describe_sketch(self, image_data_url: str) -> str:
+    async def _describe_with_prompt(self, image_data_url: str, user_prompt: str) -> str:
         if not self.api_key:
             raise ApiKeyError(API_KEY_ERROR)
         img = (image_data_url or "").strip()
         if not img:
-            raise RuntimeError("草图为空")
+            raise RuntimeError("图片为空")
         if not img.startswith("data:"):
             img = f"data:image/png;base64,{img}"
 
@@ -172,7 +195,7 @@ class DashScopeQwenVLClient:
                             "role": "user",
                             "content": [
                                 {"type": "image_url", "image_url": {"url": img}},
-                                {"type": "text", "text": SKETCH_VL_USER_PROMPT},
+                                {"type": "text", "text": user_prompt},
                             ],
                         }
                     ],
@@ -208,7 +231,7 @@ class DashScopeQwenVLClient:
                         "role": "user",
                         "content": [
                             {"image": img},
-                            {"text": SKETCH_VL_USER_PROMPT},
+                            {"text": user_prompt},
                         ],
                     }
                 ],
@@ -216,6 +239,12 @@ class DashScopeQwenVLClient:
             return _extract_vl_text(resp)
 
         return await asyncio.to_thread(_call)
+
+    async def describe_sketch(self, image_data_url: str) -> str:
+        return await self._describe_with_prompt(image_data_url, SKETCH_VL_USER_PROMPT)
+
+    async def describe_family_photo(self, image_data_url: str) -> str:
+        return await self._describe_with_prompt(image_data_url, FAMILY_PHOTO_VL_USER_PROMPT)
 
 
 class DashScopeQwenClient:

@@ -89,9 +89,11 @@ function WorkflowDag({
     "book",
   ].filter((id) => id === "book" || Boolean(stageById[id]));
 
+  const visualStageTitle = stageById.sketch?.title || "";
+  const isFamilyVisualStage = /合照|亲子/.test(visualStageTitle);
   const labelById: Record<string, { title: string; role?: string }> = {
     queued: { title: "输入素材" },
-    sketch: { title: "草图理解", role: "子Agent" },
+    sketch: { title: isFamilyVisualStage ? "合照审核" : "草图理解", role: "子Agent" },
     culture: { title: "文化检索", role: "子Agent" },
     orchestrate: { title: "中枢", role: "Agent" },
     draft: { title: "故事撰写", role: "子Agent" },
@@ -298,8 +300,14 @@ export function StoryBookPanel({
 
   const displayTraceEntry = (entry: AgentTraceEntry) => {
     const toolName = getTraceToolName(entry);
-    const subAgentLabel = toolName ? subAgentLabelByTool[toolName] : null;
-    if (`${entry.title} ${entry.detail}`.includes("墨韵 Ranker")) {
+    const rawText = `${entry.title} ${entry.detail}`;
+    const subAgentLabel =
+      toolName === "analyze_sketch" && /合照|亲子/.test(rawText)
+        ? "合照审核子Agent"
+        : toolName
+          ? subAgentLabelByTool[toolName]
+          : null;
+    if (rawText.includes("墨韵 Ranker")) {
       return {
         kindLabel: "Ranker",
         title: entry.title,

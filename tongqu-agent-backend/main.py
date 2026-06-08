@@ -45,9 +45,9 @@ class StorybookCreateRequest(BaseModel):
         default=None,
         description="孩子对自己画的补充说明，与 VL 结果一并作为素材",
     )
-    creation_source: Literal["voice", "keywords", "sketch"] | None = Field(
+    creation_source: Literal["voice", "keywords", "sketch", "family"] | None = Field(
         default=None,
-        description="创作来源，用于追踪：voice | keywords | sketch",
+        description="创作来源，用于追踪：voice | keywords | sketch | family",
     )
     enable_style_keyword_enhancer: bool | None = Field(
         default=None,

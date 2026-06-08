@@ -10,6 +10,7 @@ interface BookshelfModalProps {
 }
 
 function modeLabel(m: BookshelfEntry["mode"]): string {
+  if (m === "family") return "亲子";
   if (m === "sketch") return "草图";
   if (m === "keywords") return "选词";
   return "语音";

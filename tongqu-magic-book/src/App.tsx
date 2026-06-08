@@ -5,7 +5,7 @@ import { StyleSelector } from "./components/StyleSelector";
 import { KeywordsSelector } from "./components/KeywordsSelector";
 import { SketchPad, type SketchPadHandle } from "./components/SketchPad";
 import { StoryBookPanel } from "./components/StoryBookPanel";
-import { BookshelfModal } from "./components/BookshelfModal";
+import { BookshelfPage } from "./components/BookshelfPage";
 import {
   addBookshelfEntry,
   loadBookshelf,
@@ -15,7 +15,7 @@ import {
 } from "./lib/bookshelfStorage";
 import { buildKeywordsForApi, type KeywordSelectionPayload } from "./lib/keywordPayload";
 import type { AgentTraceEntry, BookMeta, CultureHit, CultureRagInfo, StoryPage, StoryStyle } from "./types";
-import { Sparkles, Wand2, Mic, Type, PenTool } from "lucide-react";
+import { Sparkles, Wand2, Mic, Type, PenTool, UsersRound, Upload, X } from "lucide-react";
 
 const API_BASE = (import.meta as unknown as { env: Record<string, string | undefined> }).env
   .VITE_API_BASE_URL?.trim();
@@ -23,7 +23,20 @@ const API_BASE = (import.meta as unknown as { env: Record<string, string | undef
 const MOCK_GENERATION =
   typeof window !== "undefined" && new URLSearchParams(window.location.search).get("mock") === "1";
 
+const MAX_FAMILY_PHOTO_BYTES = 7 * 1024 * 1024;
+
 const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+
+type CreationMode = "voice" | "keywords" | "sketch" | "family";
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(reader.error ?? new Error("读取图片失败"));
+    reader.readAsDataURL(file);
+  });
+}
 
 const OFFLINE_DEMO: StoryPage[] = [
   {
@@ -127,7 +140,7 @@ function makeBookshelfFingerprint(title: string, pages: StoryPage[]): string {
 
 export default function App() {
   const [theme] = useState<"default" | "spring">("default");
-  const [creationMode, setCreationMode] = useState<"voice" | "keywords" | "sketch">("voice");
+  const [creationMode, setCreationMode] = useState<CreationMode>("voice");
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationStageIndex, setGenerationStageIndex] = useState(0);
   const [generationElapsedSec, setGenerationElapsedSec] = useState(0);
@@ -147,10 +160,13 @@ export default function App() {
   const [rewritingPageIndex, setRewritingPageIndex] = useState<number | null>(null);
   const [sketchSnapshotUrl, setSketchSnapshotUrl] = useState<string | null>(null);
   const [sketchDescription, setSketchDescription] = useState("");
-  const [lastBookSource, setLastBookSource] = useState<"voice" | "keywords" | "sketch" | null>(null);
+  const [familyPhotoUrl, setFamilyPhotoUrl] = useState<string | null>(null);
+  const [familyPhotoName, setFamilyPhotoName] = useState("");
+  const [familyTravelWish, setFamilyTravelWish] = useState("");
+  const [lastBookSource, setLastBookSource] = useState<CreationMode | null>(null);
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
   const sketchPadRef = useRef<SketchPadHandle>(null);
-  const [bookshelfOpen, setBookshelfOpen] = useState(false);
+  const [appView, setAppView] = useState<"create" | "bookshelf">("create");
   const [bookshelfItems, setBookshelfItems] = useState<BookshelfEntry[]>([]);
   const [bookshelfNotice, setBookshelfNotice] = useState<string | null>(null);
 
@@ -224,7 +240,13 @@ export default function App() {
     const title = remotePages[0].title.split("·")[0]?.trim() || "未命名绘本";
     const currentFp = makeBookshelfFingerprint(title, remotePages);
     const src: BookshelfEntry["mode"] =
-      lastBookSource === "sketch" ? "sketch" : lastBookSource === "keywords" ? "keywords" : "voice";
+      lastBookSource === "sketch"
+        ? "sketch"
+        : lastBookSource === "family"
+          ? "family"
+          : lastBookSource === "keywords"
+            ? "keywords"
+            : "voice";
     try {
       const existing = await loadBookshelf();
       const exists = existing.some(
@@ -258,6 +280,33 @@ export default function App() {
     setKeywordPayload(p);
   }, []);
 
+  const handleFamilyPhotoChange = useCallback(async (file: File | null) => {
+    setApiError(null);
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setApiError("请上传 JPG / PNG / WebP 等图片文件。");
+      return;
+    }
+    if (file.size > MAX_FAMILY_PHOTO_BYTES) {
+      setApiError("合照图片太大，请压缩到 7MB 以内再上传。");
+      return;
+    }
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      setFamilyPhotoUrl(dataUrl);
+      setFamilyPhotoName(file.name);
+      if (lastBookSource === "family") {
+        setRemotePages(null);
+        setBookMeta(null);
+        setCultureInfo(null);
+        setLastBookSource(null);
+      }
+      setActiveIndex(0);
+    } catch (err) {
+      setApiError(err instanceof Error ? err.message : "读取合照失败，请重试。");
+    }
+  }, [lastBookSource]);
+
   const storyPages = remotePages ?? (API_BASE ? WAITING_PAGES : OFFLINE_DEMO);
 
   const sketchSplitActive =
@@ -267,6 +316,7 @@ export default function App() {
 
   const progressText = useMemo(() => {
     if (!isGenerating) return "";
+    if (creationMode === "family") return "时空小门正在打开，亲子角色准备穿越...";
     if (creationMode === "sketch") return "魔法画笔正在将草图变为插画...";
     if (style === "paper-cut") return "神笔马良正在帮你剪纸哦...";
     if (style === "ink-wash") return "小墨童正在挥毫泼墨...";
@@ -275,13 +325,27 @@ export default function App() {
   }, [isGenerating, style, creationMode]);
 
   const generationStages = useMemo<GenerationStage[]>(() => {
+    if (creationMode === "family") {
+      return [
+        { id: "queued", title: "任务已接收", detail: "童趣中枢正在准备亲子共创材料" },
+        { id: "orchestrate", title: "中枢 Agent 编排", detail: "规划穿越故事、分镜与配图流程" },
+        { id: "sketch", title: "审核亲子合照", detail: "进行图片安全审核，并提取亲子角色锚点" },
+        { id: "culture", title: "检索文化语料", detail: "查找适合亲子穿越的传统文化内核" },
+        { id: "draft", title: "撰写故事与分镜", detail: "生成亲子共创故事正文并拆分为 4~6 个连续页面" },
+        { id: "board", title: "整理分镜脚本", detail: "检查每页旁白、画面提示词与角色一致性" },
+        { id: "ranker", title: "墨韵 Ranker", detail: "按画风评估每页视觉关键词，未启用时登记跳过" },
+        { id: "image", title: "绘制插画场景", detail: "把亲子角色穿越到中国风绘本画面中" },
+        { id: "tts", title: "合成朗读音频", detail: "为每页旁白生成温和朗读" },
+        { id: "review", title: "安全审阅与润色", detail: "进行儿童安全复核与价值观对齐" },
+      ];
+    }
     if (creationMode === "sketch") {
       return [
         { id: "queued", title: "任务已接收", detail: "童趣中枢正在准备创作材料" },
-        { id: "sketch", title: "解析草图灵感", detail: "正在理解孩子画里的主角和场景" },
         { id: "orchestrate", title: "中枢 Agent 编排", detail: "规划故事、分镜与配图流程" },
+        { id: "sketch", title: "解析草图灵感", detail: "正在理解孩子画里的主角和场景" },
         { id: "culture", title: "检索文化语料", detail: "查找传统文化主题和儿童化改写线索" },
-        { id: "draft", title: "撰写故事与分镜", detail: "生成故事正文并拆分为 8~10 个连续页面" },
+        { id: "draft", title: "撰写故事与分镜", detail: "生成故事正文并拆分为 4~6 个连续页面" },
         { id: "board", title: "整理分镜脚本", detail: "检查每页旁白、画面提示词与角色一致性" },
         { id: "ranker", title: "墨韵 Ranker", detail: "按画风评估每页视觉关键词，未启用时登记跳过" },
         { id: "image", title: "绘制插画场景", detail: "按分镜逐页生成中国风配图" },
@@ -293,7 +357,7 @@ export default function App() {
       { id: "queued", title: "任务已接收", detail: "童趣中枢正在准备创作材料" },
       { id: "orchestrate", title: "中枢 Agent 编排", detail: "规划故事、分镜与配图流程" },
       { id: "culture", title: "检索文化语料", detail: "查找传统文化主题和儿童化改写线索" },
-      { id: "draft", title: "撰写故事与分镜", detail: "生成故事正文并拆分为 8~10 个连续页面" },
+      { id: "draft", title: "撰写故事与分镜", detail: "生成故事正文并拆分为 4~6 个连续页面" },
       { id: "board", title: "整理分镜脚本", detail: "检查每页旁白、画面提示词与角色一致性" },
       { id: "ranker", title: "墨韵 Ranker", detail: "按画风评估每页视觉关键词，未启用时登记跳过" },
       { id: "image", title: "绘制插画场景", detail: "按分镜逐页生成中国风配图" },
@@ -385,6 +449,7 @@ export default function App() {
     setLastBookSource(entry.mode);
     setSketchSnapshotUrl(entry.sketchThumb ?? null);
     setCreationMode(entry.mode);
+    setAppView("create");
   };
 
   const runMockGeneration = async () => {
@@ -397,7 +462,10 @@ export default function App() {
     setBookMeta(null);
     const traceByStage: Record<string, { kind: string; title: string; detail: string }> = {
       queued: { kind: "observe", title: "理解输入", detail: "收到模拟素材，准备进入文化检索与故事编排。" },
-      sketch: { kind: "tool_call", title: "启动：草图理解子Agent", detail: "模拟读取孩子草图中的角色和场景。" },
+      sketch:
+        creationMode === "family"
+          ? { kind: "tool_call", title: "启动：合照审核子Agent", detail: "模拟完成亲子合照安全审核，并提取亲子角色锚点。" }
+          : { kind: "tool_call", title: "启动：草图理解子Agent", detail: "模拟读取孩子草图中的角色和场景。" },
       culture: { kind: "tool_result", title: "完成：文化基因检索子Agent", detail: "提取核心价值：勇敢、互助、守信；只作为文化内核参考。" },
       orchestrate: { kind: "decision", title: "安全预处理完成", detail: "输入素材可继续创作。" },
       draft: { kind: "tool_call", title: "启动：故事撰写子Agent", detail: "一次生成标题、正文、角色设定与分页分镜。" },
@@ -424,33 +492,61 @@ export default function App() {
         }
         await wait(520);
       }
-      const title = "竹林小灯";
-      const pages: StoryPage[] = [
-        {
-          id: "mock-p1",
-          title,
-          sceneNo: 1,
-          text: "孙悟空带着小伙伴走进竹林，风吹过竹叶，像是在轻轻唱歌。",
-          imagePrompt: "A playful monkey in a quiet bamboo forest, no text, no letters, no watermark, no logo",
-          imageUrl: "/封面.png",
-        },
-        {
-          id: "mock-p2",
-          title: `${title} · 第2页`,
-          sceneNo: 2,
-          text: "小兔子发现一盏小灯笼，孙悟空把它挂到竹枝上，暖光照亮大家的脸。",
-          imagePrompt: "A playful monkey and a rabbit hanging a small lantern on bamboo, no text, no letters, no watermark, no logo",
-          imageUrl: "/封面.png",
-        },
-        {
-          id: "mock-p3",
-          title: `${title} · 第3页`,
-          sceneNo: 3,
-          text: "他们沿着灯光找到回家的小路，也学会了遇到困难要一起想办法。",
-          imagePrompt: "Children book scene of friends following warm lantern light through bamboo forest, no text, no letters, no watermark, no logo",
-          imageUrl: "/封面.png",
-        },
-      ];
+      const title = creationMode === "family" ? "长安灯会小使者" : "竹林小灯";
+      const pages: StoryPage[] =
+        creationMode === "family"
+          ? [
+              {
+                id: "mock-p1",
+                title,
+                sceneNo: 1,
+                text: "一阵金色风吹来，孩子和家长牵着手，变成绘本里的小旅人，来到了热闹的长安灯会。",
+                imagePrompt: "Parent and child as non-photorealistic picture-book travelers in ancient Chang'an lantern festival, no text, no letters, no watermark, no logo",
+                imageUrl: familyPhotoUrl || "/封面.png",
+              },
+              {
+                id: "mock-p2",
+                title: `${title} · 第2页`,
+                sceneNo: 2,
+                text: "他们一起观察花灯上的纹样，发现每一盏灯都藏着一句关于团圆和守信的小秘密。",
+                imagePrompt: "Parent and child examining traditional lantern patterns in ancient China, warm family co-creation, no text, no letters, no watermark, no logo",
+                imageUrl: "/封面.png",
+              },
+              {
+                id: "mock-p3",
+                title: `${title} · 第3页`,
+                sceneNo: 3,
+                text: "孩子提出办法，家长帮忙搭桥，他们把迷路的小灯送回灯楼，也把勇气装进口袋。",
+                imagePrompt: "Parent and child solving a gentle puzzle together at an ancient lantern tower, Chinese picture book style, no text, no letters, no watermark, no logo",
+                imageUrl: "/封面.png",
+              },
+            ]
+          : [
+              {
+                id: "mock-p1",
+                title,
+                sceneNo: 1,
+                text: "孙悟空带着小伙伴走进竹林，风吹过竹叶，像是在轻轻唱歌。",
+                imagePrompt: "A playful monkey in a quiet bamboo forest, no text, no letters, no watermark, no logo",
+                imageUrl: "/封面.png",
+              },
+              {
+                id: "mock-p2",
+                title: `${title} · 第2页`,
+                sceneNo: 2,
+                text: "小兔子发现一盏小灯笼，孙悟空把它挂到竹枝上，暖光照亮大家的脸。",
+                imagePrompt: "A playful monkey and a rabbit hanging a small lantern on bamboo, no text, no letters, no watermark, no logo",
+                imageUrl: "/封面.png",
+              },
+              {
+                id: "mock-p3",
+                title: `${title} · 第3页`,
+                sceneNo: 3,
+                text: "他们沿着灯光找到回家的小路，也学会了遇到困难要一起想办法。",
+                imagePrompt: "Children book scene of friends following warm lantern light through bamboo forest, no text, no letters, no watermark, no logo",
+                imageUrl: "/封面.png",
+              },
+            ];
       setRemotePages(pages);
       setBookMeta({
         title,
@@ -458,11 +554,17 @@ export default function App() {
         storyText: pages.map((p) => p.text).join("\n"),
         visualConsistency: {
           characters: [
-            {
-              role: "主角",
-              name: "孙悟空",
-              appearance_anchor_en: "A playful monkey with golden fur, wearing a red cape and a golden headband, small and agile.",
-            },
+            creationMode === "family"
+              ? {
+                  role: "主角",
+                  name: "亲子旅人",
+                  appearance_anchor_en: "A parent and child pair redesigned as non-photorealistic Chinese picture-book travelers, warm colors, friendly expressions, consistent outfits.",
+                }
+              : {
+                  role: "主角",
+                  name: "孙悟空",
+                  appearance_anchor_en: "A playful monkey with golden fur, wearing a red cape and a golden headband, small and agile.",
+                },
           ],
           key_props: [
             {
@@ -485,9 +587,9 @@ export default function App() {
             visual_motifs: ["金箍", "竹林", "灯笼"],
           },
         ],
-        integrationNote: "仅吸收文化内核和视觉意象，不复刻原故事情节。",
+        integrationNote: creationMode === "family" ? "将亲子关系与传统文化内核结合，不复刻照片人脸或原故事情节。" : "仅吸收文化内核和视觉意象，不复刻原故事情节。",
       });
-      setLastBookSource(creationMode === "sketch" ? "sketch" : creationMode === "keywords" ? "keywords" : "voice");
+      setLastBookSource(creationMode === "sketch" ? "sketch" : creationMode === "family" ? "family" : creationMode === "keywords" ? "keywords" : "voice");
       setActiveIndex(0);
     } finally {
       setIsGenerating(false);
@@ -512,6 +614,16 @@ export default function App() {
       setRemotePages(null);
       setCultureInfo(null);
     }
+    if (creationMode === "family") {
+      if (!familyPhotoUrl && !MOCK_GENERATION) {
+        setApiError("请先上传一张亲子合照，再点击「一键穿越」。");
+        return;
+      }
+      sketchImageForApi = familyPhotoUrl ?? undefined;
+      setRemotePages(null);
+      setCultureInfo(null);
+      setBookMeta(null);
+    }
 
     if (creationMode === "voice") {
       const t = voiceEditedText.trim();
@@ -534,8 +646,19 @@ export default function App() {
     setAgentTrace([]);
     try {
       const sketchNote = sketchDescription.trim();
+      const familyWish = familyTravelWish.trim();
       const kw =
-        creationMode === "sketch"
+        creationMode === "family"
+          ? `【亲子共创】用户上传了一张亲子合照，希望点击「一键穿越」后，把照片里的家长和孩子改写成安全、非写实的儿童绘本角色，穿越到古代中国传统故事里共同冒险。
+
+创作要求：
+1. 只保留亲子关系、服装色彩、发型轮廓、表情气质和互动氛围等非敏感特征；不要复刻真实人脸，不要出现照片背景隐私。
+2. 故事应体现家长和孩子共同观察、讨论、分工、解决问题的亲子共创感。
+3. 文化内容重点参考传统文化内核，不强行复刻原故事情节。
+4. 每页画面都应保持亲子角色一致，不添加现代品牌、可读文字或水印。
+
+【穿越愿望】${familyWish || "穿越到古代中国传统故事里，展开一次温暖、有趣、互相帮助的冒险。"}`
+          : creationMode === "sketch"
           ? `儿童手绘画本·根据孩子草图与理解结果创作积极向上的小故事${
               sketchNote ? `\n\n【孩子描述】${sketchNote}` : ""
             }`
@@ -552,6 +675,7 @@ export default function App() {
           creation_source: creationMode,
           ...(sketchImageForApi ? { sketch_image_base64: sketchImageForApi } : {}),
           ...(creationMode === "sketch" && sketchNote ? { sketch_text: sketchNote } : {}),
+          ...(creationMode === "family" && familyWish ? { sketch_text: familyWish } : {}),
         }),
       });
       if (!res.ok || !res.body) {
@@ -660,7 +784,13 @@ export default function App() {
         });
         setActiveIndex(0);
         const src: BookshelfEntry["mode"] =
-          creationMode === "sketch" ? "sketch" : creationMode === "keywords" ? "keywords" : "voice";
+          creationMode === "sketch"
+            ? "sketch"
+            : creationMode === "family"
+              ? "family"
+              : creationMode === "keywords"
+                ? "keywords"
+                : "voice";
         setLastBookSource(src);
       } else {
         setApiError("后端返回数据不完整（缺少 title / scenes / image_urls）");
@@ -797,14 +927,29 @@ export default function App() {
             童趣绘梦 <span className="text-xs text-theme-text/40 font-classical ml-1 hidden sm:inline">AI绘本创作平台</span>
           </h1>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setAppView("create")}
+            className={`text-xs font-bold border-2 border-theme-text rounded-full px-3 py-1 transition-colors ${
+              appView === "create"
+                ? "bg-theme-text text-white"
+                : "bg-theme-bg hover:bg-theme-secondary hover:text-white"
+            }`}
+          >
+            创作台
+          </button>
           <button
             type="button"
             onClick={() => {
               void refreshBookshelf();
-              setBookshelfOpen(true);
+              setAppView("bookshelf");
             }}
-            className="text-xs font-bold border-2 border-theme-text rounded-full px-3 py-1 bg-theme-bg hover:bg-theme-secondary hover:text-white transition-colors"
+            className={`text-xs font-bold border-2 border-theme-text rounded-full px-3 py-1 transition-colors ${
+              appView === "bookshelf"
+                ? "bg-theme-text text-white"
+                : "bg-theme-bg hover:bg-theme-secondary hover:text-white"
+            }`}
           >
             我的书架
           </button>
@@ -815,8 +960,27 @@ export default function App() {
       </header>
 
       {/* Main Content Area - No vertical scroll */}
-      <main className="flex-1 flex flex-col lg:flex-row w-full px-4 lg:px-6 py-3 gap-6 lg:gap-8 overflow-hidden min-h-0">
-        
+      <main
+        className={
+          appView === "bookshelf"
+            ? "flex-1 min-h-0 w-full overflow-hidden"
+            : "flex-1 flex flex-col lg:flex-row w-full px-4 lg:px-6 py-3 gap-6 lg:gap-8 overflow-hidden min-h-0"
+        }
+      >
+        {appView === "bookshelf" ? (
+          <BookshelfPage
+            items={bookshelfItems}
+            onOpenBook={openBookFromShelf}
+            onCreateNew={() => setAppView("create")}
+            onRemove={(id) => {
+              void removeBookshelfEntry(id).then(() => refreshBookshelf());
+            }}
+            onClearAll={() => {
+              void clearBookshelf().then(() => refreshBookshelf());
+            }}
+          />
+        ) : (
+          <>
         {/* Left Sidebar: Creation Tools - Internal scroll only */}
         <aside className="lg:w-[360px] flex flex-col flex-shrink-0 bg-white border-handdrawn p-4 shadow-kid overflow-y-auto hide-scrollbar font-classical">
           <div className="flex flex-col gap-4">
@@ -845,6 +1009,12 @@ export default function App() {
               >
                 <PenTool className="w-3 h-3" /> 草图
               </button>
+              <button
+                onClick={() => setCreationMode("family")}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-full font-bold text-[11px] ${creationMode === "family" ? "bg-theme-surface border-2 border-theme-text shadow-[1px_1px_0px_#1A2B3C]" : "text-theme-text/40 hover:text-theme-text"}`}
+              >
+                <UsersRound className="w-3 h-3" /> 亲子
+              </button>
             </div>
             
             {/* Step 1: Input Area */}
@@ -855,6 +1025,7 @@ export default function App() {
                   {creationMode === "voice" && "说出你的故事"}
                   {creationMode === "keywords" && "拼凑故事元素"}
                   {creationMode === "sketch" && "画出你的灵感"}
+                  {creationMode === "family" && "上传亲子合照"}
                 </h3>
               </div>
               
@@ -956,6 +1127,65 @@ export default function App() {
                     />
                   </label>
                 </div>
+
+                <div className={creationMode === "family" ? "" : "hidden"}>
+                  <div className="rounded-xl border-2 border-dashed border-cn-green/70 bg-cn-green/10 p-2">
+                    {familyPhotoUrl ? (
+                      <div className="flex flex-col gap-2">
+                        <div className="relative overflow-hidden rounded-lg border-2 border-cn-ink bg-white">
+                          <img
+                            src={familyPhotoUrl}
+                            alt="亲子合照预览"
+                            className="h-[118px] w-full object-cover"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFamilyPhotoUrl(null);
+                              setFamilyPhotoName("");
+                            }}
+                            disabled={isGenerating}
+                            className="absolute right-1.5 top-1.5 rounded-full border-2 border-cn-ink bg-white p-1 hover:bg-cn-yellow disabled:opacity-50"
+                            title="移除合照"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                        <p className="truncate text-[10px] font-bold text-cn-ink/60">{familyPhotoName || "已上传亲子合照"}</p>
+                      </div>
+                    ) : (
+                      <label className="flex min-h-[118px] cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-cn-ink/15 bg-white/75 px-3 text-center hover:bg-white">
+                        <Upload className="h-5 w-5 text-cn-green" />
+                        <span className="text-[12px] font-black text-cn-ink">上传合照</span>
+                        <span className="text-[9px] font-semibold leading-snug text-cn-ink/50">
+                          将由视觉模型先做安全审核，再提取亲子角色锚点
+                        </span>
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp"
+                          className="hidden"
+                          disabled={isGenerating}
+                          onChange={(e) => {
+                            void handleFamilyPhotoChange(e.target.files?.[0] ?? null);
+                            e.currentTarget.value = "";
+                          }}
+                        />
+                      </label>
+                    )}
+                  </div>
+                  <label className="mt-2 flex flex-col gap-1">
+                    <span className="text-[10px] font-bold text-cn-ink/80">一键穿越到哪里？</span>
+                    <textarea
+                      value={familyTravelWish}
+                      onChange={(e) => setFamilyTravelWish(e.target.value.slice(0, 300))}
+                      rows={2}
+                      maxLength={300}
+                      placeholder="例如：穿越到长安灯会，和孩子一起寻找会发光的诗句"
+                      disabled={isGenerating}
+                      className="w-full resize-none rounded-lg border-2 border-cn-green/40 bg-white p-2 text-[11px] text-cn-ink placeholder:text-cn-ink/40 disabled:opacity-60"
+                    />
+                  </label>
+                </div>
               </div>
             </div>
 
@@ -991,7 +1221,9 @@ export default function App() {
                 }`}
               >
                 <Sparkles className={`w-4 h-4 ${isGenerating ? "animate-spin" : ""}`} strokeWidth={2.5} />
-                <span className="font-classical tracking-widest text-lg">开始变魔术</span>
+                <span className="font-classical tracking-widest text-lg">
+                  {creationMode === "family" ? "一键穿越" : "开始变魔术"}
+                </span>
               </button>
             </div>
           </div>
@@ -1031,20 +1263,9 @@ export default function App() {
             />
           )}
         </section>
+          </>
+        )}
       </main>
-
-      <BookshelfModal
-        open={bookshelfOpen}
-        onClose={() => setBookshelfOpen(false)}
-        items={bookshelfItems}
-        onRemove={(id) => {
-          void removeBookshelfEntry(id).then(() => refreshBookshelf());
-        }}
-        onClearAll={() => {
-          void clearBookshelf().then(() => refreshBookshelf());
-        }}
-        onOpenBook={openBookFromShelf}
-      />
       {bookshelfNotice && (
         <div className="fixed top-16 left-1/2 -translate-x-1/2 z-[120] pointer-events-none">
           <div className="text-[12px] text-emerald-700 font-bold leading-snug border border-emerald-200 bg-emerald-50 rounded-full px-4 py-2 shadow-soft">

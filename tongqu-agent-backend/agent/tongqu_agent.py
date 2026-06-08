@@ -13,7 +13,7 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 from agent.tools import CharacterScriptEntry, StoryPlanningArgs, TongquToolHandlers
 from config import CONFIG
-from core.clients import ApiKeyError, SKETCH_VL_USER_PROMPT
+from core.clients import ApiKeyError, FAMILY_PHOTO_VL_USER_PROMPT, SKETCH_VL_USER_PROMPT
 from core.models import CreationSource, Scene
 from services.culture_rag import CultureHit, CultureRagService
 from services.sketch_service import SketchUnderstandingService
@@ -21,15 +21,28 @@ from services.story_pipeline import StorybookPipeline
 
 MAX_REACT_TURNS = 8
 ProgressReporter = Callable[[dict[str, Any]], Awaitable[None]]
+BAD_GENERATED_CONTENT_MARKERS = (
+    "展示内容超出实例化范围",
+    "内容超出实例化范围",
+    "超出实例化范围",
+    "实例化范围",
+    "contents is required",
+    "invalid_request",
+    "error code",
+    "request id",
+    "生成失败",
+    "无法生成",
+    "无法显示",
+)
 
 _REACT_SYSTEM_PROMPT = """你是「童趣绘梦」的儿童绘本主理人，负责把用户素材变成可配图、可朗读的分镜内容。
 
 你必须使用提供的工具（Function Calling）完成工作，不要只在对话里讲故事而不调用工具。
 
 **标准作业流程（SOP）——须严格遵守：**
-1. 若工作区标明「用户带有草图图片」，必须先调用 `analyze_sketch` 获取画面语义；若无草图，可跳过此步。
+1. 若工作区标明「用户带有草图图片或亲子合照」，必须先调用 `analyze_sketch` 获取画面语义；亲子合照会在该工具内完成图片安全审核。若无图片，可跳过此步。
 2. 调用 `retrieve_culture`：基于 safe_keywords、sketch_text 与（若有）visual_semantics 检索文化语料，取得 culture_context。
-3. 调用 `draft_story`：结合工作区中的「用于写故事的核心素材 safe_keywords」、（若有）视觉语义与 culture_context，一次性生成标题、大纲、人物脚本、价值观、完整故事正文（650-900 字）和 8-10 个连续分镜页面。
+3. 调用 `draft_story`：结合工作区中的「用于写故事的核心素材 safe_keywords」、（若有）视觉语义与 culture_context，一次性生成标题、大纲、人物脚本、价值观、完整故事正文（350-600 字）和 4-6 个连续分镜页面。
 4. 调用 `review_safety`：对故事正文做自我审查（BERT 位点）。若结果不安全或高风险，**不要**继续分镜，应再次调用 `draft_story` 改写后再调用 `review_safety`。
 5. 当你确认 `draft_story` 已返回合理分镜且安全审查通过后，调用 `finish_creation` 传入 `title`、`story_body_zh` 与 `scenes` 列表以**结束**整个创作流程。
 
@@ -40,13 +53,67 @@ _REACT_SYSTEM_PROMPT = """你是「童趣绘梦」的儿童绘本主理人，负
 """
 
 
+def _find_bad_generated_content_marker(text: str) -> str | None:
+    lower = (text or "").lower()
+    for marker in BAD_GENERATED_CONTENT_MARKERS:
+        if marker.lower() in lower:
+            return marker
+    return None
+
+
+def _validate_no_bad_generated_content(label: str, text: str) -> None:
+    marker = _find_bad_generated_content_marker(text)
+    if marker:
+        raise ValueError(f"{label} 包含系统/错误占位文本「{marker}」，必须重新生成完整儿童绘本内容")
+
+
+def _scene_field(scene: Any, *names: str) -> Any:
+    if isinstance(scene, dict):
+        for name in names:
+            if name in scene:
+                return scene.get(name)
+    for name in names:
+        if hasattr(scene, name):
+            return getattr(scene, name)
+    return None
+
+
+def _validate_story_scenes_for_creation(scenes: list[Any]) -> None:
+    if not (4 <= len(scenes) <= 6):
+        raise ValueError("scenes 必须为 4～6 条")
+
+    scene_numbers: list[int] = []
+    for idx, scene in enumerate(scenes, start=1):
+        raw_scene_no = _scene_field(scene, "scene_no")
+        try:
+            scene_no = int(raw_scene_no)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"第 {idx} 页 scene_no 必须是整数") from exc
+        scene_numbers.append(scene_no)
+
+        text = str(_scene_field(scene, "text", "text_zh") or "").strip()
+        image_prompt = str(_scene_field(scene, "image_prompt", "image_prompt_en") or "").strip()
+        compact_text = "".join(text.split())
+        _validate_no_bad_generated_content(f"第 {scene_no} 页旁白", text)
+        if len(compact_text) < 18:
+            raise ValueError(f"第 {scene_no} 页旁白过短或为空，必须写成完整儿童绘本页面")
+
+        _validate_no_bad_generated_content(f"第 {scene_no} 页 image_prompt", image_prompt)
+        if len(image_prompt) < 30:
+            raise ValueError(f"第 {scene_no} 页 image_prompt 过短或为空")
+
+    expected = list(range(1, len(scenes) + 1))
+    if scene_numbers != expected:
+        raise ValueError("scenes 页码必须从 1 连续递增，不得重复、缺页或乱序")
+
+
 def _build_react_tools() -> list[dict[str, Any]]:
     return [
         {
             "type": "function",
             "function": {
                 "name": "analyze_sketch",
-                "description": "当用户上传了草图图片时调用：走 VL 理解画面并返回中文语义；无图时不应声称有图。",
+                "description": "当用户上传了草图图片或亲子合照时调用：走 VL 完成画面理解；亲子合照会同时做儿童安全审核。无图时不应声称有图。",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -63,7 +130,7 @@ def _build_react_tools() -> list[dict[str, Any]]:
             "type": "function",
             "function": {
                 "name": "draft_story",
-                "description": "根据安全过滤后的关键词、（可选）草图视觉语义与文化 RAG 上下文，一次生成完整故事与 8-10 页连续分镜 JSON（含 title_zh、outline_zh、character_script、positive_values、story_body_zh、scenes）。",
+                "description": "根据安全过滤后的关键词、（可选）草图视觉语义与文化 RAG 上下文，一次生成完整故事与 4-6 页连续分镜 JSON（含 title_zh、outline_zh、character_script、positive_values、story_body_zh、scenes）。",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -129,7 +196,7 @@ def _build_react_tools() -> list[dict[str, Any]]:
             "type": "function",
             "function": {
                 "name": "generate_storyboard",
-                "description": "兼容兜底工具：仅当 draft_story 没有返回 scenes 时才调用，将故事拆成 8-10 个连续分镜。",
+                "description": "兼容兜底工具：仅当 draft_story 没有返回 scenes 时才调用，将故事拆成 4-6 个连续分镜。",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -208,8 +275,8 @@ def _build_react_tools() -> list[dict[str, Any]]:
                         },
                         "scenes": {
                             "type": "array",
-                            "minItems": 8,
-                            "maxItems": 10,
+                            "minItems": 4,
+                            "maxItems": 6,
                             "items": {
                                 "type": "object",
                                 "properties": {
@@ -269,6 +336,7 @@ class TongquAgent:
         self._ctx_material_for_llm: str = ""
         self._ctx_sketch_image: str | None = None
         self._ctx_sketch_text: str | None = None
+        self._ctx_creation_source: CreationSource = CreationSource.KEYWORDS
         self._ctx_style: str = ""
         self._ctx_visual_semantics: str | None = None
         self._ctx_vl_used: bool = False
@@ -371,6 +439,7 @@ class TongquAgent:
                 "vl_used": False,
                 "message": "无草图或未上传图片，可跳过本工具直接 draft_story。",
             }
+        image_kind = "family_photo" if self._ctx_creation_source == CreationSource.FAMILY else "sketch"
         if self._tool_handlers._run_recorder is not None:
             self._tool_handlers._run_recorder.record(
                 "sketch_vl_request",
@@ -378,13 +447,15 @@ class TongquAgent:
                     "has_sketch_image": True,
                     "sketch_text": self._ctx_sketch_text,
                     "base_keywords": self._ctx_original_keywords,
-                    "vl_prompt": SKETCH_VL_USER_PROMPT,
+                    "image_kind": image_kind,
+                    "vl_prompt": FAMILY_PHOTO_VL_USER_PROMPT if image_kind == "family_photo" else SKETCH_VL_USER_PROMPT,
                 },
             )
         ctx = await self._sketch.build_keywords(
             base_keywords=self._ctx_original_keywords,
             sketch_image_base64=img,
             sketch_text=self._ctx_sketch_text,
+            image_kind=image_kind,
         )
         self._ctx_vl_used = ctx.vl_used
         self._ctx_visual_semantics = ctx.vl_understanding
@@ -395,12 +466,23 @@ class TongquAgent:
                     "vl_used": ctx.vl_used,
                     "visual_semantics": ctx.vl_understanding,
                     "merged_keywords": ctx.merged_keywords,
+                    "image_kind": ctx.image_kind,
+                    "image_safety_passed": ctx.image_safety_passed,
                 },
             )
+        if image_kind == "family_photo":
+            self._ctx_material_for_llm = ctx.merged_keywords
+            self._ctx_safe_keywords = ctx.merged_keywords
         return {
             "visual_semantics": ctx.vl_understanding,
             "vl_used": ctx.vl_used,
-            "message": "草图语义已生成，请继续调用 retrieve_culture，并把 visual_semantics 与 core_keywords 一起作为 query。",
+            "image_kind": ctx.image_kind,
+            "image_safety_passed": ctx.image_safety_passed,
+            "message": (
+                "亲子合照已通过安全审核并生成角色锚点，请继续调用 retrieve_culture，并把 visual_semantics 与 core_keywords 一起作为 query。"
+                if image_kind == "family_photo"
+                else "草图语义已生成，请继续调用 retrieve_culture，并把 visual_semantics 与 core_keywords 一起作为 query。"
+            ),
         }
 
     async def _tool_retrieve_culture(self, args: dict[str, Any]) -> dict[str, Any]:
@@ -428,6 +510,12 @@ class TongquAgent:
         core = (args.get("core_keywords") or self._ctx_material_for_llm or "").strip()
         if not core:
             raise ValueError("core_keywords 不能为空")
+        if (
+            self._ctx_creation_source == CreationSource.FAMILY
+            and self._ctx_visual_semantics
+            and self._ctx_visual_semantics not in core
+        ):
+            core = f"{core}\n\n【亲子合照理解】{self._ctx_visual_semantics}".strip()
         style = (args.get("style") or self._ctx_style).strip()
         vs = args.get("visual_semantics")
         if isinstance(vs, str) and not vs.strip():
@@ -442,6 +530,8 @@ class TongquAgent:
             style=style,
         )
         result = await self._tool_handlers.story_planning_tool(plan_args)
+        _validate_no_bad_generated_content("故事正文", result.story_body_zh)
+        _validate_story_scenes_for_creation(list(result.scenes))
         self._ctx_character_script = [item.model_dump() for item in result.character_script]
         self._ctx_key_props = [item.model_dump() for item in result.key_props]
         self._ctx_setting_anchor_en = (result.setting_anchor_en or "").strip()
@@ -502,8 +592,8 @@ class TongquAgent:
         raw_setting_anchor = args.get("setting_anchor_en")
         if isinstance(raw_setting_anchor, str) and raw_setting_anchor.strip():
             self._ctx_setting_anchor_en = raw_setting_anchor.strip()
-        if not isinstance(raw_scenes, list) or not (8 <= len(raw_scenes) <= 10):
-            raise ValueError("scenes 必须为 8～10 条")
+        if not isinstance(raw_scenes, list) or not (4 <= len(raw_scenes) <= 6):
+            raise ValueError("scenes 必须为 4～6 条")
         scenes: List[Scene] = []
         for item in raw_scenes:
             if not isinstance(item, dict):
@@ -516,6 +606,8 @@ class TongquAgent:
                 )
             )
         scenes.sort(key=lambda s: s.scene_no)
+        _validate_no_bad_generated_content("故事正文", story_body)
+        _validate_story_scenes_for_creation(scenes)
         ack = {
             "ok": True,
             "message": "已收到最终成稿，服务端将配图并合成语音。无需再调用其他工具。",
@@ -706,6 +798,7 @@ class TongquAgent:
         self._ctx_material_for_llm = material_for_llm
         self._ctx_sketch_image = sketch_image_base64
         self._ctx_sketch_text = sketch_text
+        self._ctx_creation_source = src
         self._ctx_style = style
         self._ctx_visual_semantics = None
         self._ctx_vl_used = False
@@ -727,6 +820,8 @@ class TongquAgent:
             "original_keywords": (keywords or "").strip(),
             "sketch_text": (sketch_text or "").strip(),
             "has_sketch_image": bool((sketch_image_base64 or "").strip()),
+            "visual_input_kind": "family_photo" if src == CreationSource.FAMILY else "sketch",
+            "family_co_creation": src == CreationSource.FAMILY,
             "input_blocked": filtered["blocked"],
             "input_hits": filtered["hits"],
             "style_keyword_enhancer_enabled": enhancer_enabled,
@@ -797,7 +892,7 @@ class TongquAgent:
                     messages.append(
                         {
                             "role": "user",
-                            "content": "请使用工具继续：若有草图请先 analyze_sketch，然后 retrieve_culture，再 draft_story → review_safety → finish_creation。draft_story 会一次返回 story_body_zh 与 8-10 页 scenes。",
+                            "content": "请使用工具继续：若有草图或亲子合照请先 analyze_sketch，然后 retrieve_culture，再 draft_story → review_safety → finish_creation。draft_story 会一次返回 story_body_zh 与 4-6 页 scenes。",
                         }
                     )
                     continue
@@ -811,9 +906,13 @@ class TongquAgent:
                         kind="tool_call",
                         title=f"调用工具：{name}",
                         detail={
-                            "analyze_sketch": "先理解草图里的角色、场景和动作，再把视觉语义补进故事素材。",
+                            "analyze_sketch": (
+                                "先审核亲子合照并提取安全角色锚点，再把视觉语义补进故事素材。"
+                                if src == CreationSource.FAMILY
+                                else "先理解草图里的角色、场景和动作，再把视觉语义补进故事素材。"
+                            ),
                             "retrieve_culture": "根据安全素材和草图语义检索传统文化条目，提取可儿童化改写的核心思想。",
-                            "draft_story": "把用户素材、草图语义和文化参考交给故事策划工具，一次生成标题、正文、价值观和 8-10 页分镜。",
+                            "draft_story": "把用户素材、草图语义和文化参考交给故事策划工具，一次生成标题、正文、价值观和 4-6 页分镜。",
                             "review_safety": "对故事正文做儿童安全初审，不通过则要求重新改写。",
                             "generate_storyboard": "把故事拆成分镜，并生成每页英文生图提示词。",
                             "finish_creation": "确认结构化成稿，准备进入配图和语音合成流水线。",
@@ -824,8 +923,12 @@ class TongquAgent:
                         await self._emit_progress(
                             on_progress,
                             "sketch",
-                            "解析草图灵感",
-                            "正在理解草图中的角色与场景语义",
+                            "审核亲子合照" if src == CreationSource.FAMILY else "解析草图灵感",
+                            (
+                                "正在进行合照安全审核，并提取可儿童化改写的亲子角色锚点"
+                                if src == CreationSource.FAMILY
+                                else "正在理解草图中的角色与场景语义"
+                            ),
                         )
                     elif name == "retrieve_culture":
                         await self._emit_progress(
@@ -839,7 +942,7 @@ class TongquAgent:
                             on_progress,
                             "draft",
                             "撰写故事与分镜",
-                            "正在一次生成标题、正文、角色设定与 8-10 页分镜",
+                            "正在一次生成标题、正文、角色设定与 4-6 页分镜",
                         )
                     elif name == "review_safety":
                         await self._emit_progress(

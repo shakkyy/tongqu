@@ -54,7 +54,7 @@ def make_fake_scenes() -> list[dict[str, object]]:
                 "no text, no letters, no watermark, no logo"
             ),
         }
-        for idx in range(1, 9)
+        for idx in range(1, 7)
     ]
 
 
@@ -254,6 +254,29 @@ class CultureRagTests(unittest.TestCase):
                 creation_source="sketch",
             )
             self.assertTrue(any("龙舟" in q and "香包" in q for q in culture.queries))
+
+        asyncio.run(run_case())
+
+    def test_finish_creation_rejects_model_placeholder_scene_text(self) -> None:
+        async def run_case() -> None:
+            agent = build_agent(CultureRagService(CORPUS, embedding_enabled=False), FakeChatLlm())
+            scenes = make_fake_scenes()
+            scenes[1]["text_zh"] = "展示内容超出实例化范围"
+            body, finished = await agent._dispatch_tool(
+                "finish_creation",
+                json.dumps(
+                    {
+                        "title": "长安灯会奇遇记",
+                        "story_body_zh": "一家人来到灯会，跟着小灯笼学习互相照顾。",
+                        "scenes": scenes,
+                    },
+                    ensure_ascii=False,
+                ),
+            )
+            payload = json.loads(body)
+            self.assertIsNone(finished)
+            self.assertEqual(payload["error"], "ValueError")
+            self.assertIn("系统/错误占位文本", payload["detail"])
 
         asyncio.run(run_case())
 

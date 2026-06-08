@@ -65,7 +65,7 @@ tongqu-agent-backend/
    携带 `tools` 调用 Qwen（**须配置 OpenAI 兼容网关**，见下文）。模型可调用：  
 
    - **`analyze_sketch`**：有草图时走 VL，返回画面语义；  
-   - **`draft_story`**：一次生成标题、大纲、人物脚本、完整故事正文与 8～10 个连续页面；  
+   - **`draft_story`**：一次生成标题、大纲、人物脚本、完整故事正文与 4～6 个连续页面；  
    - **`review_safety`**：BERT 位点自查，不通过则应在对话上下文中回到 `draft_story` 再审；  
    - **`generate_storyboard`**：兼容兜底工具，仅在 `draft_story` 未返回分镜时补充分镜；  
    - **`finish_creation`**：提交终稿 JSON，**唯一正常出口**，跳出循环。  

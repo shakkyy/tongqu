@@ -56,18 +56,22 @@ class SafetyClient(Protocol):
 
 
 class SketchVisionClient(Protocol):
-    """Qwen-VL Plus：草图 → 中文描述。"""
+    """Qwen-VL Plus：视觉输入 → 中文描述。"""
 
     async def describe_sketch(self, image_data_url: str) -> str:
         ...
 
+    async def describe_family_photo(self, image_data_url: str) -> str:
+        ...
+
 
 class CreationSource(str, Enum):
-    """与前端三种创作方式一一对应。"""
+    """与前端创作方式一一对应。"""
 
     VOICE = "voice"
     KEYWORDS = "keywords"
     SKETCH = "sketch"
+    FAMILY = "family"
 
     @classmethod
     def from_optional(cls, raw: str | None) -> CreationSource:

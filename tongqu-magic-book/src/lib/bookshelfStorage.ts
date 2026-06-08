@@ -1,6 +1,6 @@
 import type { BookMeta, CultureRagInfo, StoryPage } from "../types";
 
-export type BookshelfMode = "voice" | "keywords" | "sketch";
+export type BookshelfMode = "voice" | "keywords" | "sketch" | "family";
 
 export interface BookshelfEntry {
   id: string;

@@ -91,13 +91,13 @@ class StoryPlanningResult(BaseModel):
     )
     story_body_zh: str = Field(
         ...,
-        description="650–900 字完整故事正文，适合切成 8-10 页绘本",
+        description="350–600 字完整故事正文，适合切成 4-6 页绘本",
     )
     scenes: list[StoryboardSceneSpec] = Field(
         ...,
-        min_length=8,
-        max_length=10,
-        description="8-10 个连续绘本页面，含中文旁白与英文生图提示词",
+        min_length=4,
+        max_length=6,
+        description="4-6 个连续绘本页面，含中文旁白与英文生图提示词",
     )
     key_props: list[VisualAnchorEntry] = Field(
         default_factory=list,
@@ -117,7 +117,7 @@ class StoryboardGenerationArgs(BaseModel):
 
 
 class StoryboardGenerationResult(BaseModel):
-    scenes: list[StoryboardSceneSpec] = Field(..., min_length=8, max_length=10)
+    scenes: list[StoryboardSceneSpec] = Field(..., min_length=4, max_length=6)
 
 
 # ---------------------------------------------------------------------------
@@ -232,7 +232,7 @@ def build_story_planning_prompt(
 
 输出字段与要求：
 1) title_zh: 故事标题（中文），简短有童趣。
-2) outline_zh: 分页式故事大纲（中文），必须包含 8-10 个连续故事节拍，便于后续切成 8-10 页。
+2) outline_zh: 分页式故事大纲（中文），必须包含 4-6 个连续故事节拍，便于后续切成 4-6 页。
 3) character_script: 数组，至少 1 条。每项含：
    - role: 角色定位（如 主角 / 配角）
    - name: 角色名（中文）
@@ -244,24 +244,26 @@ def build_story_planning_prompt(
    - appears_in_scenes: 页码数组；不确定可为空
 5) setting_anchor_en: **英文**主场景/空间关系锚点，如主场景的布局、光线、背景元素；无固定场景可为空字符串。
 6) positive_values: 字符串数组，列出本故事要体现的正向价值观（如 勇敢、友谊、合作）。
-7) story_body_zh: **完整故事正文**（中文），**650–900 个汉字**，与 outline_zh 一致、叙事连贯有结局。
-8) scenes: 数组，**8-10 条**，直接完成分镜拆页。每项含：
+7) story_body_zh: **完整故事正文**（中文），**350–600 个汉字**，与 outline_zh 一致、叙事连贯有结局。
+8) scenes: 数组，**4-6 条**，直接完成分镜拆页。每项含：
    - scene_no: 从 1 递增
    - text_zh: 该页中文旁白（约 55-90 字），所有页面要串成一个连续的故事，不能各写各的
    - image_prompt_en: **纯英文**生图提示词，只描述画面可见内容；必须包含 "no text, no letters, no watermark, no logo"
 
 语言要求：
 - 必须像 4-10 岁儿童绘本，句子短、意思直接、画面清楚。
-- 故事要像一本真正的 8-10 页绘本：每一页推进一个小动作或小发现，前后因果清楚，不要把几个互不相干的片段拼在一起。
+- 故事要像一本真正的 4-6 页短绘本：每一页推进一个小动作或小发现，前后因果清楚，不要把几个互不相干的片段拼在一起。
 - 主角、重要配角和关键道具要稳定出现；不要一会儿换设定、一会儿换目标。
 - 如果「视觉语义」来自孩子草图，其中的具体可见物体、角色、动作和空间关系是内容锚点，不只是风格灵感。除非不安全或与核心素材明显冲突，否则必须自然进入故事起点，并在相关 scenes 的 image_prompt_en 中用普通英文物体词保留；不要把“笔记本电脑/苹果电脑/房子/河/船”等具体物体只改写成“科技/想象/节日”等抽象主题。
 - 如果草图里有品牌标识、logo 或文字，只保留它代表的普通物体语义；image_prompt_en 仍必须遵守 no text, no letters, no watermark, no logo。
 - 每页可承载 55-90 字旁白，因此正文要有足够细节：动作、场景、对话、情绪变化都要具体。
 - scenes 必须从 story_body_zh 中自然切分，不要新增与正文矛盾的情节。
+- scenes 的 scene_no 必须严格从 1 连续递增，不得重复、缺页或乱序。
 - image_prompt_en 必须保持角色一致：主角每页复用同一段 appearance_anchor_en；重要配角出现时也复用固定特征。
 - image_prompt_en 必须保持核心道具一致：凡是 key_props 中的物品在某页出现，必须原样嵌入对应 anchor_en，不要换颜色、形状、材质、大小或装饰。
 - image_prompt_en 要体现页面连续性：同一地点、同一道具、同一角色不要突然改变外观；如仍在主场景中，应复用 setting_anchor_en。
 - image_prompt_en 必须把关键主体放在安全中心区域，避免边缘裁切；不要在 prompt 里写图像比例，比例由生图 API 配置控制。
+- 严禁把系统、工具、接口、占位或错误提示写进 title_zh、outline_zh、story_body_zh 或 scenes，例如“展示内容超出实例化范围”“生成失败”“无法显示”“invalid_request”“contents is required”等。即使上游素材有限，也必须写出完整儿童绘本内容。
 - 少用成语、古风词和成人文学化表达；避免“月华、窗棂、笑靥、刹那、银辉”等孩子不易理解的词。
 - 每个关键情节要让孩子能明白：谁在做什么、为什么做、结果怎样。
 - 温暖但不要晦涩，不要把故事写成散文诗。
@@ -299,10 +301,10 @@ def build_storyboard_prompt(
 
 你是儿童绘本主理人中的「分镜导演」角色。只输出一个 JSON 对象，不要 Markdown、不要解释。
 
-任务：将给定故事正文 **切分为 8-10 个连续绘本页面**，每页一段旁白；并为每页写 **纯英文** 的 image_prompt。
+任务：将给定故事正文 **切分为 4-6 个连续绘本页面**，每页一段旁白；并为每页写 **纯英文** 的 image_prompt。
 
 硬性规则：
-1) scenes 数组长度必须为 8 到 10。
+1) scenes 数组长度必须为 4 到 6。
 2) 每个 scene：
    - scene_no: 从 1 递增
    - text_zh: 该页中文旁白（约 55-90 字），全部来自或紧密改编自 story_body_zh，所有页面合起来覆盖完整故事；每一页都要承接上一页、推进下一页，不能各写各的；语言必须简单直白，适合孩子朗读，避免“月华、窗棂、笑靥、刹那、银辉”等生僻或成人文学化词语。
@@ -311,6 +313,7 @@ def build_storyboard_prompt(
    - **角色一致性**：将 character_script 中每条 appearance_anchor_en **原样嵌入**每个相关场景的 image_prompt_en（主角每页必须出现并复用原锚点；重要配角出现时也复用原锚点）。不要改变主角的颜色、服饰、年龄、发型、物种或关键道具。
    - **连续性**：image_prompt_en 要保留上一页留下的重要物件和空间关系，例如同一只灯笼、同一封信、同一条河岸；不要突然换成无关场景。
 3) 风格：{style_cn}；在英文 prompt 中加入与该风格匹配的修饰词（参考系统提示中的风格表）。
+4) 严禁把系统、工具、接口、占位或错误提示写入 text_zh 或 image_prompt_en，例如“展示内容超出实例化范围”“生成失败”“无法显示”“invalid_request”“contents is required”等。
 
 【大纲参考】
 {args.outline_zh}

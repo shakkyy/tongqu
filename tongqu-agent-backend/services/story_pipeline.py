@@ -315,7 +315,7 @@ class StorybookPipeline:
                 raw_scenes = data.get("scenes") or []
                 if isinstance(raw_scenes, list) and raw_scenes:
                     parsed: List[Scene] = []
-                    for idx, item in enumerate(raw_scenes[:10], start=1):
+                    for idx, item in enumerate(raw_scenes[:6], start=1):
                         if not isinstance(item, dict):
                             continue
                         parsed.append(
@@ -505,8 +505,8 @@ class StorybookPipeline:
 2) 价值观导向：积极向上，自然融入（而非生硬说教）勇气、合作、善良或诚信等品质。
 3) 故事结构：
    - title: 创意且吸引人的故事标题（中文）
-   - story: 完整故事连贯流畅（总字数 650-900 字），像一本真正的 8-10 页绘本，有清楚的起因、经过、转折和结尾。
-   - scenes: 将故事拆分为 8-10 个连续画面场景，每个场景承接上一页并推进下一页，不要各写各的。
+   - story: 完整故事连贯流畅（总字数 350-600 字），像一本真正的 4-6 页短绘本，有清楚的起因、经过、转折和结尾。
+   - scenes: 将故事拆分为 4-6 个连续画面场景，每个场景承接上一页并推进下一页，不要各写各的。
 4) 场景字段要求 (scenes)：
    - scene_no: 场景序号 (1, 2, 3...)
    - text: 该画面的绘本旁白（中文，约 55-90 字）
@@ -750,7 +750,7 @@ class StorybookPipeline:
             raise ValueError("LLM 未返回 scenes")
 
         scenes: List[Scene] = []
-        for idx, item in enumerate(raw_scenes[:10], start=1):
+        for idx, item in enumerate(raw_scenes[:6], start=1):
             scenes.append(
                 Scene(
                     scene_no=int(item.get("scene_no", idx)),
