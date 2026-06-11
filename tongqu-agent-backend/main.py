@@ -295,11 +295,20 @@ async def rewrite_storybook_page(body: StorybookRewritePageRequest) -> dict:
             recorder.finish(result)
         return result
     except Exception as exc:  # noqa: BLE001
+        detail = str(exc)
         result = {
             "ok": False,
             "error": "替换本页失败",
-            "detail": str(exc),
+            "detail": detail,
         }
+        if "safety_blocked" in detail or "不适合儿童绘本" in detail:
+            result.update(
+                {
+                    "code": "safety_blocked",
+                    "safety_blocked": True,
+                    "should_stop": True,
+                }
+            )
         if recorder is not None:
             recorder.finish(result)
         return result

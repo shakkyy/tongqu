@@ -32,7 +32,7 @@ const modeMeta: Record<BookshelfEntry["mode"], { label: string; Icon: typeof Mic
   voice: { label: "语音", Icon: Mic, tone: "bg-cn-azure/10 text-cn-azure border-cn-azure/35" },
   keywords: { label: "选词", Icon: Type, tone: "bg-cn-yellow/10 text-[#8A5A00] border-cn-yellow/45" },
   sketch: { label: "草图", Icon: PenTool, tone: "bg-cn-red/10 text-cn-red border-cn-red/35" },
-  family: { label: "亲子", Icon: UsersRound, tone: "bg-cn-green/10 text-cn-green border-cn-green/35" },
+  family: { label: "亲子", Icon: UsersRound, tone: "bg-cn-red/10 text-cn-red border-cn-red/35" },
 };
 
 function formatDate(ts: number): string {
@@ -69,6 +69,10 @@ export function BookshelfPage({
         item.title,
         item.pages.map((page) => page.text).join(" "),
         item.culture?.hits.map((hit) => hit.title).join(" ") ?? "",
+        item.bookMeta?.familyCoCreation?.members?.map((m) => `${m.displayName} ${m.relation} ${m.storyRole}`).join(" ") ?? "",
+        item.bookMeta?.familyCoCreation?.childIdea ?? "",
+        item.bookMeta?.familyCoCreation?.parentGoal ?? "",
+        item.bookMeta?.familyCoCreation?.travelWish ?? "",
       ]
         .join(" ")
         .toLowerCase();
@@ -90,6 +94,8 @@ export function BookshelfPage({
 
   const totalPages = items.reduce((sum, item) => sum + item.pageCount, 0);
   const latest = items[0];
+  const selectedFamily = selected?.bookMeta?.familyCoCreation;
+  const selectedFamilyPhoto = selected?.familyPhotoThumb || selectedFamily?.familyPhotoThumb;
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden font-classical">
@@ -101,7 +107,7 @@ export function BookshelfPage({
                 <BookOpen className="h-5 w-5" />
               </div>
               <div>
-                <h2 className="text-2xl font-black leading-tight text-cn-ink">我的书架</h2>
+                <h2 className="text-2xl font-black leading-tight text-cn-ink">成长纪念书架</h2>
                 <p className="text-[11px] font-bold text-cn-ink/50">
                   {items.length > 0 ? `${items.length} 本绘本 · ${totalPages} 页内容` : "暂无绘本"}
                 </p>
@@ -236,6 +242,11 @@ export function BookshelfPage({
                       <span className="absolute bottom-2 right-2 rounded-full border border-cn-ink/20 bg-white/90 px-2 py-1 text-[9px] font-black text-cn-ink">
                         {item.pageCount} 页
                       </span>
+                      {item.familyPhotoThumb || item.bookMeta?.familyCoCreation?.familyPhotoThumb ? (
+                        <span className="absolute bottom-2 left-2 rounded-full border border-cn-red/35 bg-white/90 px-2 py-1 text-[9px] font-black text-cn-red">
+                          合照纪念
+                        </span>
+                      ) : null}
                     </div>
                     <div className="p-3">
                       <p className="truncate text-sm font-black text-cn-ink">{item.title}</p>
@@ -313,6 +324,37 @@ export function BookshelfPage({
                         </span>
                       ))}
                     </div>
+                  </div>
+                ) : null}
+
+                {selectedFamily || selectedFamilyPhoto ? (
+                  <div className="mt-4 rounded-lg border-2 border-cn-red/35 bg-cn-red/10 p-3">
+                    <p className="mb-2 flex items-center gap-1 text-[11px] font-black text-cn-red">
+                      <UsersRound className="h-3.5 w-3.5" />
+                      家庭纪念
+                    </p>
+                    {selectedFamilyPhoto ? (
+                      <img
+                        src={selectedFamilyPhoto}
+                        alt="家庭合照缩略图"
+                        className="mb-2 aspect-[16/10] w-full rounded-lg border border-cn-ink/15 object-cover"
+                      />
+                    ) : null}
+                    {selectedFamily?.travelWish ? (
+                      <p className="text-[11px] font-bold leading-snug text-cn-ink/75">
+                        穿越愿望：{selectedFamily.travelWish}
+                      </p>
+                    ) : null}
+                    {selectedFamily?.childIdea ? (
+                      <p className="mt-1 text-[11px] font-bold leading-snug text-cn-ink/65">
+                        孩子点子：{selectedFamily.childIdea}
+                      </p>
+                    ) : null}
+                    {selectedFamily?.parentGoal ? (
+                      <p className="mt-1 text-[11px] font-bold leading-snug text-cn-ink/65">
+                        家长期待：{selectedFamily.parentGoal}
+                      </p>
+                    ) : null}
                   </div>
                 ) : null}
 

@@ -138,20 +138,20 @@ SKETCH_VL_USER_PROMPT = (
 )
 
 FAMILY_PHOTO_VL_USER_PROMPT = """
-你是儿童绘本产品的亲子合照安全审核与角色锚点提取助手。请严格只输出一个 JSON 对象，不要 Markdown。
+你是儿童绘本产品的亲子视觉参考安全审核与角色锚点提取助手。输入可能是本次亲子合照，也可能是家庭角色库成员照片拼成的参考图。请严格只输出一个 JSON 对象，不要 Markdown。
 
 安全审核标准：
 - 如果图片包含明显裸露、性暗示、暴力、受伤、血腥、危险行为、仇恨符号、成人不雅内容，safe 必须为 false。
 - 如果图片包含身份证件、手机号、地址、学校班级、车牌、二维码等可识别隐私信息，safe 必须为 false。
 - 不要识别真实人物身份，不要推断姓名、年龄、职业、住址或其他敏感身份。
 
-通过时，请只提取适合儿童绘本的非敏感视觉锚点：大致人数、亲子关系氛围、服装主色、发型轮廓、表情气质、可安全泛化的亲子互动。不要要求复刻真实人脸。
+通过时，请只提取适合儿童绘本的非敏感视觉锚点：大致人数、亲子关系氛围或角色组合、服装主色、发型轮廓、表情气质、可安全泛化的互动方式。不要要求复刻真实人脸。如果输入是多张角色库照片拼图，请按从左到右、从上到下的顺序概括每个角色，不要称其为合照。
 
 JSON schema:
 {
   "safe": true,
   "risk_reason": "",
-  "family_summary_zh": "适合后续创作的中文照片理解，3-5句",
+  "family_summary_zh": "适合后续创作的中文视觉参考理解，3-5句",
   "character_anchors_en": [
     "child character: non-photorealistic picture-book avatar, ...",
     "parent character: non-photorealistic picture-book avatar, ..."
@@ -610,8 +610,8 @@ STYLE_PROMPTS: Dict[str, Dict[str, str]] = {
         "suffix": ", Final image must look like shadow puppet silhouettes under stage light, no horror, no text, no letters, no watermark, no logo."
     },
     "漫画": {
-        "prefix": "Friendly children's comic panel style, clean ink outlines, soft flat or light cel shading, bright but harmonious colors, Chinese cultural elements, ",
-        "suffix": ", Final image must look like friendly children's comic illustration, no horror, no text, no letters, no watermark, no logo."
+        "prefix": "Friendly children's comic illustration style, single full-page scene, clean ink outlines, soft flat or light cel shading, bright but harmonious colors, Chinese cultural elements, ",
+        "suffix": ", Final image must look like one full-page friendly children's comic illustration, not a comic strip, not a collage, no panels, no split-screen, no horror, no text, no letters, no watermark, no logo."
     }
 }
 

@@ -4,6 +4,7 @@ import { floodFillImageData } from "../lib/canvasFloodFill";
 
 export type SketchPadHandle = {
   getDataURL: () => string | null;
+  drawDemoSketch: () => void;
 };
 
 type SketchTool = "pen" | "eraser" | "fill";
@@ -306,6 +307,7 @@ export const SketchPad = forwardRef<SketchPadHandle, SketchPadProps>(function Sk
         return null;
       }
     },
+    drawDemoSketch,
   }));
 
   useEffect(() => {

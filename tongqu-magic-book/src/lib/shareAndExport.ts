@@ -1,4 +1,11 @@
-import type { CultureRagInfo, StoryPage } from "../types";
+import type { CultureRagInfo, FamilyCoCreationMeta, InteractionCard, StoryPage } from "../types";
+
+export type ExportPreviewDocument = {
+  title: string;
+  filename: string;
+  html: string;
+  kind: "story" | "memory";
+};
 
 function escapeHtml(s: string): string {
   return s
@@ -20,13 +27,37 @@ function buildCultureText(culture?: CultureRagInfo): string[] {
     `检索到：${culture.hits.map((h) => h.title).join("、")}`,
     ...culture.hits.slice(0, 3).flatMap((h, i) => [
       `${i + 1}. ${h.title}${h.score !== undefined ? `（相似度 ${h.score}）` : ""}`,
+      h.story_summary ? `传统故事简介：${h.story_summary}` : "",
       h.core_idea ? `核心思想：${h.core_idea}` : "",
       h.child_friendly_takeaway ? `儿童化寓意：${h.child_friendly_takeaway}` : "",
       h.visual_motifs?.length ? `视觉意象：${h.visual_motifs.join("、")}` : "",
     ].filter(Boolean)),
-    culture.integrationNote ? `改写说明：${culture.integrationNote}` : "",
     "",
   ].filter(Boolean);
+}
+
+function buildFamilyText(family?: FamilyCoCreationMeta): string[] {
+  if (!family) return [];
+  const members = family.members?.filter((m) => m.enabled) ?? [];
+  return [
+    "【亲子共创】",
+    family.travelWish ? `穿越愿望：${family.travelWish}` : "",
+    family.childIdea ? `孩子的点子：${family.childIdea}` : "",
+    family.parentGoal ? `家长的期待：${family.parentGoal}` : "",
+    members.length
+      ? `家庭角色：${members.map((m) => `${m.displayName}（${m.storyRole}）`).join("、")}`
+      : "",
+    "",
+  ].filter(Boolean);
+}
+
+function buildInteractionText(cards?: InteractionCard[]): string[] {
+  if (!cards?.length) return [];
+  return [
+    "【读完一起玩】",
+    ...cards.map((card, idx) => `${idx + 1}. ${card.title}：${card.prompt}`),
+    "",
+  ];
 }
 
 function buildPlainText(pages: StoryPage[], bookTitle: string, culture?: CultureRagInfo): string {
@@ -42,20 +73,108 @@ function buildPlainText(pages: StoryPage[], bookTitle: string, culture?: Culture
   return lines.join("\n").trim();
 }
 
-function downloadBlob(filename: string, content: string, mime: string): void {
-  const blob = new Blob([content], { type: mime });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.rel = "noopener";
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+function readBlobAsDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(reader.error ?? new Error("图片读取失败"));
+    reader.readAsDataURL(blob);
+  });
 }
 
-function buildHtmlDocument(pages: StoryPage[], bookTitle: string, culture?: CultureRagInfo): string {
+function resolveAssetUrl(src: string): string {
+  if (!src || src.startsWith("data:") || src.startsWith("blob:")) return src;
+  if (typeof window === "undefined") return src;
+  return new URL(src, window.location.href).toString();
+}
+
+async function inlineImageSrc(src: string): Promise<string> {
+  if (!src || src.startsWith("data:")) return src;
+  const resolved = resolveAssetUrl(src);
+  try {
+    const response = await fetch(resolved, { credentials: "same-origin" });
+    if (!response.ok) throw new Error(`图片加载失败: ${response.status}`);
+    return await readBlobAsDataUrl(await response.blob());
+  } catch {
+    return resolved;
+  }
+}
+
+async function inlineExportImages(
+  pages: StoryPage[],
+  family?: FamilyCoCreationMeta,
+): Promise<{ pages: StoryPage[]; family?: FamilyCoCreationMeta }> {
+  const inlinedPages = await Promise.all(
+    pages.map(async (page) => ({
+      ...page,
+      imageUrl: await inlineImageSrc(page.imageUrl),
+    })),
+  );
+  const inlinedFamily = family
+    ? {
+        ...family,
+        familyPhotoThumb: family.familyPhotoThumb ? await inlineImageSrc(family.familyPhotoThumb) : undefined,
+      }
+    : undefined;
+  return { pages: inlinedPages, family: inlinedFamily };
+}
+
+function buildFamilyHtml(family?: FamilyCoCreationMeta): string {
+  if (!family) return "";
+  const members = family.members?.filter((m) => m.enabled) ?? [];
+  return `
+<section class="memory">
+  <h2>亲子共创记录</h2>
+  ${family.familyPhotoThumb ? `<img class="family-photo" src="${escapeHtml(family.familyPhotoThumb)}" alt="家庭合照缩略图" />` : ""}
+  ${family.travelWish ? `<p><strong>穿越愿望：</strong>${escapeHtml(family.travelWish)}</p>` : ""}
+  ${family.childIdea ? `<p><strong>孩子的点子：</strong>${escapeHtml(family.childIdea)}</p>` : ""}
+  ${family.parentGoal ? `<p><strong>家长的期待：</strong>${escapeHtml(family.parentGoal)}</p>` : ""}
+  ${
+    members.length
+      ? `<div class="member-grid">${members
+          .map(
+            (m) => `
+    <div class="member">
+      <h3>${escapeHtml(m.displayName)} <span>${escapeHtml(m.relation)}</span></h3>
+      <p><strong>${escapeHtml(m.storyRole)}</strong></p>
+      <p>${escapeHtml(m.characterDescription)}</p>
+    </div>`,
+          )
+          .join("")}</div>`
+      : ""
+  }
+</section>`;
+}
+
+function buildInteractionHtml(cards?: InteractionCard[]): string {
+  if (!cards?.length) return "";
+  return `
+<section class="memory">
+  <h2>读完一起玩</h2>
+  <div class="card-grid">
+    ${cards
+      .map(
+        (card) => `
+    <div class="play-card">
+      <h3>${escapeHtml(card.title)}</h3>
+      <p>${escapeHtml(card.prompt)}</p>
+    </div>`,
+      )
+      .join("")}
+  </div>
+</section>`;
+}
+
+function buildHtmlDocument(
+  pages: StoryPage[],
+  bookTitle: string,
+  culture?: CultureRagInfo,
+  options?: {
+    family?: FamilyCoCreationMeta;
+    interactionCards?: InteractionCard[];
+    memoryBook?: boolean;
+  },
+): string {
   const sections = pages
     .map(
       (p) => `
@@ -80,15 +199,19 @@ function buildHtmlDocument(pages: StoryPage[], bookTitle: string, culture?: Cult
       (h) => `
   <div class="culture-hit">
     <h3>${escapeHtml(h.title)}${h.score !== undefined ? ` <span>相似度 ${escapeHtml(String(h.score))}</span>` : ""}</h3>
+    ${h.story_summary ? `<p><strong>传统故事简介：</strong>${escapeHtml(h.story_summary)}</p>` : ""}
     ${h.core_idea ? `<p><strong>核心思想：</strong>${escapeHtml(h.core_idea)}</p>` : ""}
     ${h.child_friendly_takeaway ? `<p><strong>儿童化寓意：</strong>${escapeHtml(h.child_friendly_takeaway)}</p>` : ""}
     ${h.visual_motifs?.length ? `<p><strong>视觉意象：</strong>${escapeHtml(h.visual_motifs.join("、"))}</p>` : ""}
   </div>`
     )
     .join("")}
-  ${culture.integrationNote ? `<p><strong>改写说明：</strong>${escapeHtml(culture.integrationNote)}</p>` : ""}
 </section>`
       : "";
+
+  const familyBlock = options?.memoryBook ? buildFamilyHtml(options.family) : "";
+  const interactionBlock = options?.memoryBook ? buildInteractionHtml(options.interactionCards) : "";
+  const memberNames = options?.family?.members?.filter((m) => m.enabled).map((m) => m.displayName).join("、") || "";
 
   return `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -99,6 +222,8 @@ function buildHtmlDocument(pages: StoryPage[], bookTitle: string, culture?: Cult
 <style>
 body { font-family: "Noto Serif SC", "Songti SC", "SimSun", serif; max-width: 720px; margin: 0 auto; padding: 24px 16px 48px; background: #faf8f5; color: #1a1a2e; }
 h1 { text-align: center; font-size: 1.35rem; margin-bottom: 1.5rem; }
+.cover { min-height: ${options?.memoryBook ? "72vh" : "auto"}; display: ${options?.memoryBook ? "flex" : "block"}; flex-direction: column; justify-content: center; text-align: center; page-break-after: ${options?.memoryBook ? "always" : "auto"}; }
+.cover .subtitle { color: #7c4a20; font-size: 0.95rem; line-height: 1.8; }
 .page { margin-bottom: 2.5rem; page-break-inside: avoid; }
 h2 { font-size: 1rem; margin: 0 0 0.5rem; color: #333; }
 figure { margin: 0; }
@@ -111,13 +236,26 @@ footer { text-align: center; font-size: 12px; color: #666; margin-top: 2rem; pad
 .culture-hit h3 { font-size: 0.95rem; margin: 0 0 0.35rem; }
 .culture-hit h3 span { font-size: 0.75rem; color: #777; font-weight: 400; }
 .culture p { font-size: 0.9rem; line-height: 1.65; margin: 0.35rem 0; }
+.memory { margin: 2.5rem 0; padding: 18px; border: 2px solid #1a2b3c; border-radius: 12px; background: #fffdf6; page-break-inside: avoid; }
+.memory h2 { color: #1a2b3c; }
+.member-grid, .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-top: 12px; }
+.family-photo { width: 100%; max-height: 260px; object-fit: cover; margin: 8px 0 14px; border-radius: 10px; border: 2px solid #1a2b3c; }
+.member, .play-card { border: 1px dashed #b8905f; border-radius: 10px; padding: 12px; background: #fff8e8; }
+.member h3, .play-card h3 { margin: 0 0 6px; font-size: 0.95rem; }
+.member h3 span { color: #777; font-size: 0.78rem; font-weight: 400; }
+.member p, .play-card p { margin: 0.35rem 0; font-size: 0.88rem; line-height: 1.65; }
 @media print { body { background: #fff; } img { border-color: #333; } }
 </style>
 </head>
 <body>
-<h1>${escapeHtml(bookTitle)}</h1>
+<section class="cover">
+  <h1>${escapeHtml(bookTitle)}</h1>
+  ${options?.memoryBook ? `<p class="subtitle">一本由${memberNames ? ` ${escapeHtml(memberNames)} ` : "家人"}共同完成的童趣绘梦纪念册<br />${escapeHtml(new Date().toLocaleDateString("zh-CN"))}</p>` : ""}
+</section>
+${familyBlock}
 ${sections}
 ${cultureBlock}
+${interactionBlock}
 <footer>由「童趣绘梦」导出 · ${escapeHtml(new Date().toLocaleString("zh-CN"))}</footer>
 </body>
 </html>`;
@@ -158,14 +296,62 @@ export async function shareStory(
   }
 }
 
-/** 下载单文件 HTML，可用浏览器打开，或通过打印另存为 PDF */
-export function exportStoryAsHtmlFile(pages: StoryPage[], bookTitle: string, culture?: CultureRagInfo): void {
+export async function buildStoryExportPreview(
+  pages: StoryPage[],
+  bookTitle: string,
+  culture?: CultureRagInfo,
+): Promise<ExportPreviewDocument> {
   if (pages.length === 0) {
     throw new Error("empty");
   }
   const name = sanitizeFilename(bookTitle);
-  const html = buildHtmlDocument(pages, bookTitle, culture);
-  downloadBlob(`${name}.html`, html, "text/html;charset=utf-8");
+  const inlined = await inlineExportImages(pages);
+  return {
+    title: `《${bookTitle}》导出预览`,
+    filename: `${name}.pdf`,
+    kind: "story",
+    html: buildHtmlDocument(inlined.pages, bookTitle, culture),
+  };
+}
+
+export async function buildMemoryBookExportPreview(
+  pages: StoryPage[],
+  bookTitle: string,
+  culture?: CultureRagInfo,
+  family?: FamilyCoCreationMeta,
+  interactionCards?: InteractionCard[],
+): Promise<ExportPreviewDocument> {
+  if (pages.length === 0) {
+    throw new Error("empty");
+  }
+  const name = sanitizeFilename(`${bookTitle}_亲子纪念册`);
+  const inlined = await inlineExportImages(pages, family);
+  return {
+    title: `《${bookTitle}》纪念册预览`,
+    filename: `${name}.pdf`,
+    kind: "memory",
+    html: buildHtmlDocument(inlined.pages, bookTitle, culture, {
+      family: inlined.family,
+      interactionCards,
+      memoryBook: true,
+    }),
+  };
+}
+
+export async function buildExportPreviewDocument(
+  pages: StoryPage[],
+  bookTitle: string,
+  culture?: CultureRagInfo,
+  options?: {
+    family?: FamilyCoCreationMeta;
+    interactionCards?: InteractionCard[];
+    memoryBook?: boolean;
+  },
+): Promise<ExportPreviewDocument> {
+  if (options?.memoryBook) {
+    return buildMemoryBookExportPreview(pages, bookTitle, culture, options.family, options.interactionCards);
+  }
+  return buildStoryExportPreview(pages, bookTitle, culture);
 }
 
 export function resolveBookTitle(pages: StoryPage[]): string {

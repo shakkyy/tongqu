@@ -10,6 +10,7 @@ export interface BookshelfEntry {
   pageCount: number;
   mode: BookshelfMode;
   sketchThumb?: string;
+  familyPhotoThumb?: string;
   culture?: CultureRagInfo;
   bookMeta?: BookMeta;
   /** 完整分页，便于从书架重新打开 */

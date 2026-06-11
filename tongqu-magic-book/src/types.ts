@@ -16,12 +16,18 @@ export interface BookMeta {
   storyText?: string;
   style?: StoryStyle;
   visualConsistency?: Record<string, unknown>;
+  familyCoCreation?: FamilyCoCreationMeta;
+  interactionCards?: InteractionCard[];
+  styleKeywords?: string[];
+  styleKeywordEnhancements?: StyleKeywordEnhancement[];
 }
 
 export interface CultureHit {
   title: string;
+  source?: string;
   category?: string;
   score?: number;
+  story_summary?: string;
   core_idea?: string;
   child_friendly_takeaway?: string;
   visual_motifs?: string[];
@@ -39,4 +45,43 @@ export interface AgentTraceEntry {
   kind: string;
   title: string;
   detail: string;
+}
+
+export interface FamilyMemberProfile {
+  id: string;
+  displayName: string;
+  relation: string;
+  storyRole: string;
+  characterDescription: string;
+  visualNotes: string;
+  photoThumb?: string;
+  enabled: boolean;
+  updatedAt: number;
+}
+
+export interface FamilyCoCreationMeta {
+  travelWish?: string;
+  childIdea?: string;
+  parentGoal?: string;
+  members?: FamilyMemberProfile[];
+  privacyConfirmed?: boolean;
+  savePhotoToShelf?: boolean;
+  familyPhotoThumb?: string;
+  createdAt?: number;
+}
+
+export interface InteractionCard {
+  id: string;
+  type: "ask" | "act" | "draw";
+  title: string;
+  prompt: string;
+}
+
+export interface StyleKeywordEnhancement {
+  scene_no?: number;
+  style?: string;
+  selected_keywords?: string[];
+  selected_fragments?: string[];
+  original_image_prompt?: string;
+  enhanced_image_prompt?: string;
 }

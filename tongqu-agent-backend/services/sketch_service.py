@@ -54,11 +54,11 @@ def _extract_json_object(raw: str) -> dict[str, Any] | None:
 def _format_family_photo_understanding(raw: str) -> tuple[str, bool]:
     data = _extract_json_object(raw)
     if data is None:
-        raise RuntimeError("亲子合照安全审核返回无法解析，请重新上传清晰、无遮挡的合照。")
+        raise RuntimeError("亲子视觉参考安全审核返回无法解析，请重新上传清晰、无遮挡的图片。")
     safe = data.get("safe")
     if safe is not True:
         reason = str(data.get("risk_reason") or "图片未通过儿童安全审核").strip()
-        raise RuntimeError(f"亲子合照未通过安全审核：{reason}")
+        raise RuntimeError(f"亲子视觉参考未通过安全审核：{reason}")
 
     summary = str(data.get("family_summary_zh") or "").strip()
     seed = str(data.get("story_seed_zh") or "").strip()
@@ -67,11 +67,11 @@ def _format_family_photo_understanding(raw: str) -> tuple[str, bool]:
     if isinstance(anchors_raw, list):
         anchors = [str(item).strip() for item in anchors_raw if str(item).strip()]
     if not summary:
-        raise RuntimeError("亲子合照安全审核缺少照片理解摘要，请重新上传更清晰的合照。")
+        raise RuntimeError("亲子视觉参考安全审核缺少图片理解摘要，请重新上传更清晰的图片。")
 
     parts = [
-        "亲子合照安全审核：通过。",
-        f"照片理解：{summary}",
+        "亲子视觉参考安全审核：通过。",
+        f"图片理解：{summary}",
         "角色改写原则：只保留非敏感的亲子关系、服装色彩、发型轮廓和互动氛围；不要复刻真实人脸，不要暴露照片背景隐私。",
     ]
     if anchors:
@@ -94,7 +94,7 @@ class SketchUnderstandingService:
     ) -> SketchContextResult:
         """
         与历史行为一致：先拼文字补充，再（若有图）走 VL，把理解追加进素材。
-        image_kind="family_photo" 时，VL 必须先完成亲子合照安全审核。
+        image_kind="family_photo" 时，VL 必须先完成亲子视觉参考安全审核。
         """
         merged = (base_keywords or "").strip()
         vl_used = False
@@ -116,7 +116,7 @@ class SketchUnderstandingService:
                 understanding = (raw or "").strip() or None
             vl_used = True
             if understanding:
-                label = "亲子合照理解" if image_kind == "family_photo" else "孩子草图理解"
+                label = "亲子视觉参考理解" if image_kind == "family_photo" else "孩子草图理解"
                 merged = f"{merged}\n\n【{label}】{understanding}".strip()
 
         return SketchContextResult(

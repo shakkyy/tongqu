@@ -25,12 +25,70 @@ from config import CONFIG
 _QWEN_GUARD_LOCK = threading.Lock()
 _QWEN_GUARD: "Qwen3GuardClassifier | None" = None
 
+SAFE_REWRITE_TOPIC = "请讲一个关于勇敢和友谊、互相帮助的中国风故事"
+CHILD_SAFETY_BLOCK_MESSAGE = (
+    "这个灵感不对哦！童趣绘梦不能画打人、流血、被吃掉或吓人的故事。"
+    "换成小伙伴把误会讲开、一起想办法、互相帮助的灵感，再试一次吧。"
+)
+CHILD_BLOCK_GUARD_CATEGORIES = {
+    "violent",
+    "non-violent illegal acts",
+    "sexual content or sexual acts",
+    "suicide & self-harm",
+    "unethical acts",
+    "politically sensitive topics",
+    "jailbreak",
+}
+PREDATION_RISK_PATTERNS = (
+    (re.compile(r"(小松鼠|小兔|小鸟|小羊|小猫|小狗|小动物|伙伴|朋友|孩子|宝宝|主角).{0,12}被.{0,12}(吃掉|吞掉|吞食|吃了|咬死)"), "被吃掉"),
+    (re.compile(r"(老虎|狮子|狼|蛇|鳄鱼|怪兽|妖怪|狐狸|鹰).{0,12}(吃掉|吞掉|吞食|吃了|咬死).{0,12}(小松鼠|小兔|小鸟|小羊|小猫|小狗|小动物|伙伴|朋友|孩子|宝宝|主角)"), "捕食弱小角色"),
+    (re.compile(r"被.{0,12}(吃掉|吞掉|吞食|咬死)"), "被吃掉"),
+)
+
+
+def _unique_preserve_order(items: List[str]) -> List[str]:
+    seen: set[str] = set()
+    out: List[str] = []
+    for item in items:
+        text = str(item).strip()
+        if text and text not in seen:
+            seen.add(text)
+            out.append(text)
+    return out
+
+
+def _pattern_risk_hits(text: str) -> List[str]:
+    return _unique_preserve_order([label for pattern, label in PREDATION_RISK_PATTERNS if pattern.search(text)])
+
 
 def _rule_based_text_review(text: str) -> Dict[str, Any]:
-    high_risk_tokens = ["杀", "尸体", "仇恨", "报复", "霸凌", "恐怖"]
+    high_risk_tokens = [
+        "暴打",
+        "殴打",
+        "痛打",
+        "打人",
+        "打死",
+        "打爆",
+        "砍人",
+        "杀死",
+        "杀害",
+        "流血",
+        "血腥",
+        "尸体",
+        "复仇",
+        "报复",
+        "虐待",
+        "霸凌",
+        "欺负",
+        "恐怖",
+        "色情",
+        "裸露",
+        "成人",
+        "极端主义",
+    ]
     medium_tokens = ["争吵", "撒谎", "欺骗"]
 
-    hit_high = [t for t in high_risk_tokens if t in text]
+    hit_high = _unique_preserve_order([t for t in high_risk_tokens if t in text] + _pattern_risk_hits(text))
     hit_mid = [t for t in medium_tokens if t in text]
     if hit_high:
         return {
@@ -134,13 +192,9 @@ class Qwen3GuardClassifier:
         self.model.to(device)
         self.model.eval()
 
-    def classify_response(self, response: str) -> Dict[str, Any]:
+    def _classify_messages(self, messages: list[dict[str, str]]) -> Dict[str, Any]:
         import torch
 
-        messages = [
-            {"role": "user", "content": "请为3-10岁儿童创作一本温暖、安全、积极的绘本故事。"},
-            {"role": "assistant", "content": response},
-        ]
         text = self.tokenizer.apply_chat_template(messages, tokenize=False)
         inputs = self.tokenizer(
             [text],
@@ -157,6 +211,32 @@ class Qwen3GuardClassifier:
         output_ids = outputs[0][inputs["input_ids"].shape[-1]:]
         raw = self.tokenizer.decode(output_ids, skip_special_tokens=True)
         return parse_qwen3guard_output(raw)
+
+    def classify_response(self, response: str) -> Dict[str, Any]:
+        messages = [
+            {
+                "role": "user",
+                "content": (
+                    "请判断助手回复是否适合4-10岁儿童绘本。童趣绘梦采用更严格标准："
+                    "血腥、暴力、殴打、捕食、动物或角色被吃掉/吞掉/咬死、恐怖、色情、歧视、违法都必须判为 Unsafe。"
+                ),
+            },
+            {"role": "assistant", "content": response},
+        ]
+        return self._classify_messages(messages)
+
+    def classify_input(self, user_input: str) -> Dict[str, Any]:
+        messages = [
+            {
+                "role": "user",
+                "content": (
+                    "请判断下面用户输入是否适合用于4-10岁儿童绘本创作。"
+                    "童趣绘梦采用更严格标准：如果包含血腥、暴力、殴打、捕食、动物或角色被吃掉/吞掉/咬死、恐怖、色情、歧视、违法或儿童不宜内容，请标为 Unsafe。\n\n"
+                    f"用户输入：{user_input}"
+                ),
+            },
+        ]
+        return self._classify_messages(messages)
 
 
 def _get_qwen_guard() -> Qwen3GuardClassifier | None:
@@ -204,29 +284,107 @@ class SafetyMiddleware:
         self.guard_enabled = CONFIG.CONTENT_SAFETY_GUARD_ENABLED if guard_enabled is None else guard_enabled
         self._logs: List[InterceptLog] = []
         self.input_blacklist = {
-            "violence": ["打架", "砍人", "爆炸", "复仇", "杀死", "血腥"],
+            "violence": [
+                "暴打",
+                "殴打",
+                "痛打",
+                "猛打",
+                "打人",
+                "打死",
+                "打爆",
+                "打架",
+                "砍人",
+                "爆炸",
+                "复仇",
+                "报复",
+                "杀死",
+                "杀害",
+                "流血",
+                "血腥",
+                "虐待",
+                "霸凌",
+                "欺负",
+            ],
             "sexual": ["色情", "裸露", "成人", "暧昧", "不雅"],
             "politics": ["恐怖组织", "煽动", "极端主义", "政变"],
         }
         self.positive_values = ["诚实", "勇敢", "友谊", "善良", "合作", "守信", "责任"]
 
     # ---------- 层1：输入过滤 ----------
-    async def filter_input(self, user_keywords: str) -> Dict[str, Any]:
+    def _blacklist_hits(self, text: str) -> List[str]:
         hits: List[str] = []
         for words in self.input_blacklist.values():
-            hits.extend([w for w in words if w in user_keywords])
+            hits.extend([w for w in words if w in text])
+        hits.extend(_pattern_risk_hits(text))
+        return _unique_preserve_order(hits)
 
-        if hits:
-            rewritten = "请讲一个关于勇敢和友谊、互相帮助的中国风故事"
+    def review_blocks_child_content(self, review: Dict[str, Any]) -> bool:
+        risk_level = str(review.get("risk_level") or "").lower()
+        guard_label = str(review.get("guard_label") or "").lower()
+        hits = [str(item).strip().lower() for item in review.get("hits") or []]
+        severe_guard_hit = any(hit in CHILD_BLOCK_GUARD_CATEGORIES for hit in hits)
+        return (
+            not bool(review.get("passed", True))
+            or risk_level == "high"
+            or guard_label == "unsafe"
+            or (guard_label == "controversial" and severe_guard_hit)
+        )
+
+    async def review_raw_input_with_guard(self, text: str) -> Dict[str, Any]:
+        if self.guard_enabled:
+            try:
+                guard = _get_qwen_guard()
+                if guard is not None:
+                    return await asyncio.to_thread(guard.classify_input, text)
+            except Exception as exc:  # noqa: BLE001
+                fallback = _rule_based_text_review(text)
+                fallback["provider"] = "local_rule_fallback"
+                fallback["model_error"] = str(exc)[:500]
+                return fallback
+        await asyncio.sleep(0.01)
+        return _rule_based_text_review(text)
+
+    async def filter_input(self, user_keywords: str) -> Dict[str, Any]:
+        raw = user_keywords or ""
+        hits = self._blacklist_hits(raw)
+        guard_review = await self.review_raw_input_with_guard(raw)
+        guard_blocked = self.review_blocks_child_content(guard_review)
+        all_hits = _unique_preserve_order(
+            [
+                *hits,
+                *[str(item) for item in (guard_review.get("hits") or []) if guard_blocked],
+            ]
+        )
+
+        if hits or guard_blocked:
             self._log(
                 stage="input",
                 risk_level="high",
-                reason=f"命中输入敏感词: {', '.join(hits)}",
-                original=user_keywords,
-                rewritten=rewritten,
+                reason=(
+                    f"输入安全预审未通过；规则命中: {', '.join(hits) or '无'}；"
+                    f"Guard: {guard_review.get('guard_label') or guard_review.get('provider')}"
+                ),
+                original=raw,
+                rewritten="已停止生成，等待用户换一个安全灵感。",
             )
-            return {"blocked": True, "sanitized_keywords": rewritten, "hits": hits}
-        return {"blocked": False, "sanitized_keywords": user_keywords, "hits": []}
+            return {
+                "blocked": True,
+                "should_stop": True,
+                "code": "safety_blocked",
+                "sanitized_keywords": SAFE_REWRITE_TOPIC,
+                "hits": all_hits,
+                "guard_review": guard_review,
+                "friendly_message": CHILD_SAFETY_BLOCK_MESSAGE,
+            }
+        return {
+            "blocked": False,
+            "should_stop": False,
+            "code": None,
+            "sanitized_keywords": raw,
+            "hits": [],
+            "guard_review": guard_review,
+            "friendly_message": None,
+        }
 
     # ---------- 层2：LLM 约束 ----------
     def build_safe_system_prompt(self, style: str) -> str:
@@ -237,7 +395,7 @@ class SafetyMiddleware:
 3. 不得鼓励欺骗、报复、霸凌、违法行为。
 4. 主题为中国风，视觉风格偏向“{style}”。
 5. 结局必须传达正向价值观：诚实、勇敢、友谊、合作、守信。
-6. 若用户意图不安全，请自动转为温暖、积极、教育向表达。
+6. 若发现用户输入或模型输出涉及血腥、暴力、恐怖、色情、歧视、违法或其他4-10岁儿童不宜内容，必须停止本轮创作，不得继续生成或改写成可配图内容。
 """.strip()
 
     # ---------- 层3A：文本输出审核（BERT 分类位点） ----------

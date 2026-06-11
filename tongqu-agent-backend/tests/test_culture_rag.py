@@ -159,6 +159,46 @@ class CultureRagTests(unittest.TestCase):
         self.assertEqual(parsed["risk_level"], "high")
         self.assertIn("Violent", parsed["hits"])
 
+    def test_input_safety_blocks_child_violent_prompt(self) -> None:
+        async def run_case() -> None:
+            middleware = SafetyMiddleware(guard_enabled=False)
+            result = await middleware.filter_input("我想画一个小熊暴打小松鼠的故事")
+            self.assertTrue(result["blocked"])
+            self.assertTrue(result["should_stop"])
+            self.assertEqual(result["code"], "safety_blocked")
+            self.assertIn("暴打", result["hits"])
+
+        asyncio.run(run_case())
+
+    def test_input_safety_blocks_predation_prompt(self) -> None:
+        async def run_case() -> None:
+            middleware = SafetyMiddleware(guard_enabled=False)
+            result = await middleware.filter_input("我想画小松鼠被小老虎吃掉")
+            self.assertTrue(result["blocked"])
+            self.assertTrue(result["should_stop"])
+            self.assertEqual(result["code"], "safety_blocked")
+            self.assertIn("被吃掉", result["hits"])
+
+        asyncio.run(run_case())
+
+    def test_agent_stops_before_llm_for_unsafe_input(self) -> None:
+        async def run_case() -> None:
+            culture = CaptureCultureRag()
+            llm = FakeChatLlm()
+            agent = build_agent(culture, llm)
+            result = await agent.run(
+                keywords="我想画一个小熊暴打小松鼠的故事",
+                style="paper-cut",
+                creation_source="voice",
+            )
+            self.assertFalse(result["ok"])
+            self.assertTrue(result["safety_blocked"])
+            self.assertEqual(result["code"], "safety_blocked")
+            self.assertEqual(llm.calls, 0)
+            self.assertEqual(culture.queries, [])
+
+        asyncio.run(run_case())
+
     def test_style_keyword_enhancer_adds_english_fragments_to_image_prompt(self) -> None:
         enhancer = StyleKeywordEnhancer(enabled=True, top_k=3)
         result = enhancer.enhance_image_prompt(
@@ -277,6 +317,30 @@ class CultureRagTests(unittest.TestCase):
             self.assertIsNone(finished)
             self.assertEqual(payload["error"], "ValueError")
             self.assertIn("系统/错误占位文本", payload["detail"])
+
+        asyncio.run(run_case())
+
+    def test_finish_creation_stops_unsafe_story_even_if_review_was_skipped(self) -> None:
+        async def run_case() -> None:
+            agent = build_agent(CultureRagService(CORPUS, embedding_enabled=False), FakeChatLlm())
+            scenes = make_fake_scenes()
+            scenes[0]["text_zh"] = "第1页，小熊暴打小松鼠，森林里的朋友都很害怕。"
+            body, finished = await agent._dispatch_tool(
+                "finish_creation",
+                json.dumps(
+                    {
+                        "title": "森林里的误会",
+                        "story_body_zh": "小熊暴打小松鼠，大家都很害怕。",
+                        "scenes": scenes,
+                    },
+                    ensure_ascii=False,
+                ),
+            )
+            payload = json.loads(body)
+            self.assertIsNone(finished)
+            self.assertFalse(payload["ok"])
+            self.assertTrue(payload["safety_blocked"])
+            self.assertEqual(payload["code"], "safety_blocked")
 
         asyncio.run(run_case())
 

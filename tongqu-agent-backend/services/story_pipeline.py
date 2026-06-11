@@ -21,7 +21,7 @@ from core.models import (
     Scene,
     TTSClient,
 )
-from core.safety import SafetyMiddleware
+from core.safety import CHILD_SAFETY_BLOCK_MESSAGE, SafetyMiddleware
 from services.style_keyword_enhancer import StyleKeywordEnhancer
 
 ProgressReporter = Callable[[dict[str, Any]], Awaitable[None]]
@@ -61,6 +61,39 @@ class StorybookPipeline:
         self.safety_middleware = safety_middleware or SafetyMiddleware()
         self.style_keyword_enhancer = style_keyword_enhancer or StyleKeywordEnhancer()
 
+    def _safety_block_result(
+        self,
+        *,
+        hits: List[str] | None = None,
+        guard_review: Dict[str, Any] | None = None,
+        source: str = "input_guard",
+    ) -> Dict[str, Any]:
+        return {
+            "ok": False,
+            "code": "safety_blocked",
+            "safety_blocked": True,
+            "should_stop": True,
+            "error": "安全预审未通过",
+            "detail": CHILD_SAFETY_BLOCK_MESSAGE,
+            "mode": "real",
+            "title": "",
+            "story_text": "",
+            "scenes": [],
+            "image_urls": [],
+            "audio_urls": [],
+            "input_blocked": True,
+            "input_hits": hits or [],
+            "safety_source": source,
+            "safety_review": guard_review or {},
+            "style_keyword_enhancer_enabled": False,
+            "style_keywords": [],
+            "enhanced_keywords_prompt": "",
+            "image_prompt_enhancements": [],
+            "style_keyword_model_used": False,
+            "style_keyword_model_error": None,
+            "intercept_logs": self.safety_middleware.list_intercept_logs(),
+        }
+
     async def run(
         self,
         story_keywords: str,
@@ -71,6 +104,12 @@ class StorybookPipeline:
         run_recorder: Any | None = None,
     ) -> Dict[str, Any]:
         try:
+            normalized_style = self._normalize_style(style)
+            enhancer_enabled = (
+                CONFIG.STYLE_KEYWORD_ENHANCER_ENABLED
+                if enable_style_keyword_enhancer is None
+                else enable_style_keyword_enhancer
+            )
             await self._emit_progress(
                 on_progress,
                 "orchestrate",
@@ -78,13 +117,19 @@ class StorybookPipeline:
                 "正在进行输入安全过滤与任务编排",
             )
             filtered = await self.safety_middleware.filter_input(story_keywords)
+            if filtered.get("blocked"):
+                await self._emit_progress(
+                    on_progress,
+                    "orchestrate",
+                    "创作已停止",
+                    "这个灵感不太适合小朋友，我们没有继续生成绘本。",
+                )
+                return self._safety_block_result(
+                    hits=[str(item) for item in filtered.get("hits") or []],
+                    guard_review=filtered.get("guard_review") or {},
+                    source="input_guard",
+                )
             safe_keywords = filtered["sanitized_keywords"]
-            normalized_style = self._normalize_style(style)
-            enhancer_enabled = (
-                CONFIG.STYLE_KEYWORD_ENHANCER_ENABLED
-                if enable_style_keyword_enhancer is None
-                else enable_style_keyword_enhancer
-            )
             enhancement = {
                 "selected_keywords": [],
                 "rewritten_prompt": safe_keywords,
@@ -116,8 +161,14 @@ class StorybookPipeline:
             raw_story = await self.llm_client.generate(prompt)
             if run_recorder is not None:
                 run_recorder.record("legacy_story_llm_response", {"raw": raw_story})
-            safe_story = await self._ensure_safe_text(raw_story)
-            title, story_text, scenes = self._parse_story_and_scenes(safe_story)
+            story_review = await self.safety_middleware.review_text_with_bert(raw_story)
+            if self.safety_middleware.review_blocks_child_content(story_review):
+                return self._safety_block_result(
+                    hits=[str(item) for item in story_review.get("hits") or []],
+                    guard_review=story_review,
+                    source="legacy_story_review",
+                )
+            title, story_text, scenes = self._parse_story_and_scenes(raw_story)
             await self._emit_progress(
                 on_progress,
                 "board",
@@ -305,9 +356,14 @@ class StorybookPipeline:
                         "bundle_for_safety": bundle,
                     },
                 )
-            safe_bundle = await self._ensure_safe_text(bundle)
-            if run_recorder is not None and safe_bundle != bundle:
-                run_recorder.record("finalize_structured_safety_rewrite", {"safe_bundle": safe_bundle})
+            bundle_review = await self.safety_middleware.review_text_with_bert(bundle)
+            if self.safety_middleware.review_blocks_child_content(bundle_review):
+                return self._safety_block_result(
+                    hits=[str(item) for item in bundle_review.get("hits") or []],
+                    guard_review=bundle_review,
+                    source="finalize_structured_review",
+                )
+            safe_bundle = bundle
             try:
                 data = json.loads(safe_bundle)
                 title = str(data.get("title", title))
@@ -616,7 +672,7 @@ class StorybookPipeline:
         filtered = await self.safety_middleware.filter_input(instruction)
         if filtered.get("blocked"):
             hits = "、".join(filtered.get("hits") or [])
-            raise ValueError(f"替换指令包含不适合儿童绘本的内容：{hits or '安全风险'}")
+            raise ValueError(f"safety_blocked: 替换指令包含不适合儿童绘本的内容：{hits or '安全风险'}")
 
         normalized_style = self._normalize_style(style)
         visual_payload = visual_consistency or {}

@@ -125,6 +125,7 @@ class CultureHit:
     source: str = ""
     category: str = ""
     score: float = 0.0
+    story_summary: str = ""
     core_idea: str = ""
     child_friendly_takeaway: str = ""
     values: list[str] = field(default_factory=list)
@@ -141,6 +142,7 @@ class CultureHit:
             "source": self.source,
             "category": self.category,
             "score": round(self.score, 4),
+            "story_summary": self.story_summary,
             "core_idea": self.core_idea,
             "child_friendly_takeaway": self.child_friendly_takeaway,
             "values": self.values,
@@ -154,8 +156,10 @@ class CultureHit:
     def to_public_dict(self) -> dict[str, Any]:
         return {
             "title": self.title,
+            "source": self.source,
             "category": self.category,
             "score": round(self.score, 4),
+            "story_summary": self.story_summary,
             "core_idea": self.core_idea,
             "child_friendly_takeaway": self.child_friendly_takeaway,
             "visual_motifs": self.visual_motifs,
@@ -283,6 +287,26 @@ def _contains_any(text: str, terms: set[str]) -> bool:
     return any(term and term in text for term in terms)
 
 
+def _extract_story_summary(text: str, meta: dict[str, Any]) -> str:
+    explicit = _as_text(
+        meta.get("story_summary")
+        or meta.get("summary")
+        or meta.get("synopsis")
+        or meta.get("description")
+    )
+    if explicit:
+        return explicit[:240]
+    match = re.search(
+        r"##\s*(?:📖\s*)?故事简介\s*\n+(.*?)(?:\n---\s*\n|\n##\s+|\Z)",
+        text,
+        re.DOTALL,
+    )
+    if not match:
+        return ""
+    summary = re.sub(r"\s+", " ", match.group(1)).strip()
+    return summary[:240]
+
+
 class CultureRagService:
     def __init__(
         self,
@@ -324,11 +348,13 @@ class CultureRagService:
             return []
         for path in sorted(self.corpus_root.rglob("*.md")):
             try:
-                meta = parse_frontmatter(path.read_text(encoding="utf-8"))
+                text = path.read_text(encoding="utf-8")
+                meta = parse_frontmatter(text)
             except UnicodeDecodeError:
                 continue
             if not meta:
                 continue
+            story_summary = _extract_story_summary(text, meta)
             parts: list[str] = []
             terms: list[str] = []
             weighted_terms: list[tuple[str, float]] = []
@@ -347,7 +373,7 @@ class CultureRagService:
             docs.append(
                 CultureDocument(
                     path=path,
-                    meta=meta,
+                    meta={**meta, "story_summary": story_summary},
                     search_text=" ".join(p for p in parts if p).lower(),
                     terms=[t for t in terms if t],
                     weighted_terms=[(t, w) for t, w in weighted_terms if t],
@@ -475,6 +501,7 @@ class CultureRagService:
                     category=str(meta.get("category") or ""),
                     score=score,
                     core_idea=str(meta.get("core_idea") or ""),
+                    story_summary=str(meta.get("story_summary") or ""),
                     child_friendly_takeaway=str(meta.get("child_friendly_takeaway") or ""),
                     values=_as_list(meta.get("values")),
                     visual_motifs=_as_list(meta.get("visual_motifs")),

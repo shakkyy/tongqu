@@ -1,6 +1,14 @@
 import { useState, useEffect, useRef } from "react";
-import type { AgentTraceEntry, CultureRagInfo, StoryPage } from "../types";
-import { exportStoryAsHtmlFile, resolveBookTitle, shareStory } from "../lib/shareAndExport";
+import type {
+  AgentTraceEntry,
+  CultureRagInfo,
+  FamilyCoCreationMeta,
+  InteractionCard,
+  StoryPage,
+  StyleKeywordEnhancement,
+} from "../types";
+import { buildExportPreviewDocument, resolveBookTitle, shareStory } from "../lib/shareAndExport";
+import type { ExportPreviewDocument } from "../lib/shareAndExport";
 import {
   BookOpen,
   Volume2,
@@ -16,8 +24,13 @@ import {
   CircleDot,
   GitBranch,
   Loader2,
+  MessageCircleQuestion,
   Mic2,
+  Paintbrush,
   Send,
+  Sparkles,
+  ScrollText,
+  Theater,
   X,
 } from "lucide-react";
 
@@ -38,6 +51,10 @@ interface StoryBookPanelProps {
   generationElapsedSec?: number;
   agentTrace?: AgentTraceEntry[];
   culture?: CultureRagInfo | null;
+  familyCoCreation?: FamilyCoCreationMeta;
+  interactionCards?: InteractionCard[];
+  styleKeywordEnhancements?: StyleKeywordEnhancement[];
+  styleKeywords?: string[];
   onSpeakPage: (index: number) => void;
   onRewritePage?: (index: number, instruction: string) => Promise<boolean>;
   rewritingPageIndex?: number | null;
@@ -52,6 +69,7 @@ type WorkflowStage = {
 };
 
 type DagStatus = "done" | "active" | "pending";
+type DetailModal = "culture" | "interaction" | "ranker" | null;
 
 function WorkflowDag({
   stages,
@@ -93,7 +111,7 @@ function WorkflowDag({
   const isFamilyVisualStage = /合照|亲子/.test(visualStageTitle);
   const labelById: Record<string, { title: string; role?: string }> = {
     queued: { title: "输入素材" },
-    sketch: { title: isFamilyVisualStage ? "合照审核" : "草图理解", role: "子Agent" },
+    sketch: { title: isFamilyVisualStage ? "亲子素材理解" : "草图理解", role: "子Agent" },
     culture: { title: "文化检索", role: "子Agent" },
     orchestrate: { title: "中枢", role: "Agent" },
     draft: { title: "故事撰写", role: "子Agent" },
@@ -252,6 +270,10 @@ export function StoryBookPanel({
   generationElapsedSec = 0,
   agentTrace = [],
   culture,
+  familyCoCreation,
+  interactionCards = [],
+  styleKeywordEnhancements = [],
+  styleKeywords = [],
   onSpeakPage,
   onRewritePage,
   rewritingPageIndex = null,
@@ -260,15 +282,26 @@ export function StoryBookPanel({
   const activePage = storyPages[activeIndex] ?? storyPages[0];
   const showSpinner = isGenerating || forceLoadingOnly;
   const [actionHint, setActionHint] = useState<string | null>(null);
-  const [shareExportBusy, setShareExportBusy] = useState<"share" | "export" | null>(null);
-  const [cultureOpen, setCultureOpen] = useState(false);
+  const [shareExportBusy, setShareExportBusy] = useState<"share" | "export" | "memory" | null>(null);
+  const [exportPreview, setExportPreview] = useState<ExportPreviewDocument | null>(null);
+  const [detailModal, setDetailModal] = useState<DetailModal>(null);
   const [rewriteOpen, setRewriteOpen] = useState(false);
   const [rewriteText, setRewriteText] = useState("");
   const [rewriteHint, setRewriteHint] = useState<string | null>(null);
   const [rewriteListening, setRewriteListening] = useState(false);
   const traceScrollRef = useRef<HTMLDivElement | null>(null);
+  const exportFrameRef = useRef<HTMLIFrameElement | null>(null);
   const currentStage = generationStages[Math.min(generationStageIndex, Math.max(generationStages.length - 1, 0))];
   const isRewriteBusy = rewritingPageIndex === activeIndex;
+  const cultureNames = culture?.hits.map((hit) => hit.title).filter(Boolean).join("、") || "传统文化线索";
+  const rankerKeywords = Array.from(
+    new Set([
+      ...styleKeywords,
+      ...styleKeywordEnhancements.flatMap((item) => item.selected_keywords || []),
+    ].filter((keyword): keyword is string => Boolean(keyword))),
+  );
+  const familyNames =
+    familyCoCreation?.members?.filter((member) => member.enabled).map((member) => member.displayName || member.relation).join("、") || "家长和孩子";
   const traceKindLabel: Record<string, string> = {
     observe: "观察",
     decision: "决策",
@@ -303,7 +336,7 @@ export function StoryBookPanel({
     const rawText = `${entry.title} ${entry.detail}`;
     const subAgentLabel =
       toolName === "analyze_sketch" && /合照|亲子/.test(rawText)
-        ? "合照审核子Agent"
+        ? "亲子素材理解子Agent"
         : toolName
           ? subAgentLabelByTool[toolName]
           : null;
@@ -373,18 +406,54 @@ export function StoryBookPanel({
     }
   };
 
-  const handleExport = () => {
+  const openExportPreview = async (memoryBook: boolean) => {
     if (showSpinner || storyPages.length === 0 || shareExportBusy) return;
     const bookTitle = resolveBookTitle(storyPages);
-    setShareExportBusy("export");
+    setShareExportBusy(memoryBook ? "memory" : "export");
     try {
-      exportStoryAsHtmlFile(storyPages, bookTitle, culture ?? undefined);
-      setActionHint("已下载 HTML 文件，可用浏览器打开，或通过「打印」另存为 PDF");
+      const preview = await buildExportPreviewDocument(storyPages, bookTitle, culture ?? undefined, memoryBook
+        ? {
+            family: familyCoCreation,
+            interactionCards,
+            memoryBook: true,
+          }
+        : undefined);
+      setExportPreview(preview);
+      setActionHint(null);
     } catch {
-      setActionHint("导出失败，请重试");
+      setActionHint(memoryBook ? "纪念册预览生成失败，请重试" : "导出预览生成失败，请重试");
     } finally {
       setShareExportBusy(null);
     }
+  };
+
+  const handleExport = () => {
+    void openExportPreview(false);
+  };
+
+  const handleMemoryExport = () => {
+    void openExportPreview(true);
+  };
+
+  const handlePrintExportPreview = () => {
+    if (!exportPreview) {
+      setActionHint("预览还没准备好，请稍后再试");
+      return;
+    }
+    const printWindow = window.open("", "_blank", "width=980,height=1200");
+    if (!printWindow) {
+      setActionHint("浏览器拦截了 PDF 导出窗口，请允许弹窗后再试");
+      return;
+    }
+    printWindow.document.open();
+    printWindow.document.write(exportPreview.html);
+    printWindow.document.close();
+    printWindow.document.title = exportPreview.filename.replace(/\.pdf$/i, "");
+    window.setTimeout(() => {
+      printWindow.focus();
+      printWindow.print();
+    }, 300);
+    setActionHint("已打开 PDF 导出预览，可在系统窗口选择保存为 PDF");
   };
 
   const handlePrev = () => {
@@ -500,6 +569,16 @@ export function StoryBookPanel({
             >
               <Download className="w-3 h-3" /> {shareExportBusy === "export" ? "…" : "导出"}
             </button>
+            {(familyCoCreation || interactionCards.length > 0) && (
+              <button
+                type="button"
+                onClick={handleMemoryExport}
+                disabled={showSpinner || storyPages.length === 0 || !!shareExportBusy}
+                className="flex items-center gap-1 border-2 border-cn-ink rounded-full bg-cn-red/15 px-2 py-0.5 font-bold text-cn-ink text-[10px] hover:bg-cn-red hover:text-white transition-colors disabled:opacity-40 disabled:pointer-events-none"
+              >
+                <BookMarked className="w-3 h-3" /> {shareExportBusy === "memory" ? "…" : "纪念册"}
+              </button>
+            )}
           </div>
         </div>
         {actionHint ? (
@@ -747,39 +826,67 @@ export function StoryBookPanel({
 
       {!showSpinner && (
         <div className="flex flex-col gap-2 flex-shrink-0">
-          {culture?.used && culture.hits.length > 0 ? (
-            <div className="rounded-xl border-2 border-dashed border-[#A56E3F] bg-[#FFF8E8] px-3 py-2">
-              <button
-                type="button"
-                onClick={() => setCultureOpen((v) => !v)}
-                className="w-full flex items-start justify-between gap-3 text-left"
-                aria-expanded={cultureOpen}
-              >
-                <div className="min-w-0">
-                  <p className="text-[11px] font-black text-[#7C4E2B] tracking-wide">文化发掘</p>
-                  <p className="text-[11px] font-bold text-cn-ink/80 truncate">
-                    已检索 {culture.hits.length} 条语料，点击{cultureOpen ? "收起" : "查看"}：{culture.hits.map((h) => h.title).join("、")}
-                  </p>
-                </div>
-                <span className="text-[10px] font-bold rounded-full border border-[#A56E3F] px-2 py-0.5 text-[#7C4E2B] bg-white/70 flex-shrink-0">
-                  {cultureOpen ? "收起" : "查看"}
-                </span>
-              </button>
-              {cultureOpen ? (
-                <>
-                  <div className="mt-2 grid gap-1 md:grid-cols-2">
-                    {culture.hits.slice(0, 2).map((hit) => (
-                      <div key={`${hit.title}-${hit.score ?? ""}`} className="text-[10px] leading-snug text-cn-ink/75">
-                        <span className="font-bold text-cn-ink">{hit.title}</span>
-                        {hit.score !== undefined ? <span className="text-cn-ink/45"> · {hit.score}</span> : null}
-                        {hit.core_idea ? <span>：{hit.core_idea}</span> : null}
-                      </div>
-                    ))}
-                  </div>
-                  {culture.integrationNote ? (
-                    <p className="mt-1 text-[10px] leading-snug text-cn-ink/60 line-clamp-2">{culture.integrationNote}</p>
-                  ) : null}
-                </>
+          {(culture?.used && culture.hits.length > 0) || interactionCards.length > 0 || rankerKeywords.length > 0 ? (
+            <div className="grid gap-2 md:grid-cols-3">
+              {culture?.used && culture.hits.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setDetailModal("culture")}
+                  className="group flex min-h-[70px] items-center gap-3 rounded-xl border-2 border-[#A56E3F] bg-[#FFF8E8] px-3 py-2 text-left shadow-[2px_2px_0px_rgba(124,78,43,0.16)] transition-all hover:-translate-y-0.5 hover:bg-[#FFF1D6]"
+                >
+                  <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border-2 border-[#A56E3F] bg-white text-[#7C4E2B] shadow-sm">
+                    <ScrollText className="h-5 w-5" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[12px] font-black text-[#6B4429]">文化基因卡</span>
+                    <span className="mt-0.5 block truncate text-[11px] font-bold text-cn-ink/70">
+                      {cultureNames}
+                    </span>
+                  </span>
+                  <span className="rounded-full border border-[#A56E3F]/60 bg-white/80 px-2 py-0.5 text-[10px] font-black text-[#7C4E2B]">
+                    打开
+                  </span>
+                </button>
+              ) : null}
+              {rankerKeywords.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setDetailModal("ranker")}
+                  className="group flex min-h-[70px] items-center gap-3 rounded-xl border-2 border-[#D9771F]/80 bg-[#FFF2DC] px-3 py-2 text-left shadow-[2px_2px_0px_rgba(217,119,31,0.16)] transition-all hover:-translate-y-0.5 hover:bg-[#FFE7C2]"
+                >
+                  <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border-2 border-[#D9771F] bg-white text-[#B95F13] shadow-sm">
+                    <Sparkles className="h-5 w-5" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[12px] font-black text-[#8A4A12]">墨韵 Ranker</span>
+                    <span className="mt-0.5 block truncate text-[11px] font-bold text-[#8A4A12]/75">
+                      {rankerKeywords.slice(0, 3).join("、")}
+                    </span>
+                  </span>
+                  <span className="rounded-full border border-[#D9771F]/45 bg-white/85 px-2 py-0.5 text-[10px] font-black text-[#B95F13]">
+                    打开
+                  </span>
+                </button>
+              ) : null}
+              {interactionCards.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setDetailModal("interaction")}
+                  className="group flex min-h-[70px] items-center gap-3 rounded-xl border-2 border-cn-red/80 bg-cn-red/10 px-3 py-2 text-left shadow-[2px_2px_0px_rgba(201,72,48,0.16)] transition-all hover:-translate-y-0.5 hover:bg-cn-red/15"
+                >
+                  <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border-2 border-cn-red bg-white text-cn-red shadow-sm">
+                    <MessageCircleQuestion className="h-5 w-5" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[12px] font-black text-cn-red">亲子互动卡</span>
+                    <span className="mt-0.5 block truncate text-[11px] font-bold text-cn-ink/70">
+                      问一问、演一演、画一画
+                    </span>
+                  </span>
+                  <span className="rounded-full border border-cn-red/60 bg-white/80 px-2 py-0.5 text-[10px] font-black text-cn-red">
+                    打开
+                  </span>
+                </button>
               ) : null}
             </div>
           ) : null}
@@ -808,6 +915,211 @@ export function StoryBookPanel({
           </div>
         </div>
       )}
+
+      {exportPreview ? (
+        <div className="absolute inset-0 z-[95] flex items-center justify-center bg-cn-ink/65 px-4 py-5 backdrop-blur-[3px]">
+          <div className="flex h-full max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border-2 border-cn-ink bg-[#FFF8E8] shadow-[8px_8px_0px_rgba(26,43,60,0.28)]">
+            <div className="flex flex-shrink-0 items-start justify-between gap-3 border-b-2 border-[#A56E3F]/25 bg-[#FFF1D6] px-5 py-4">
+              <div className="min-w-0">
+                <p className="text-lg font-black leading-tight text-cn-ink">{exportPreview.title}</p>
+                <p className="mt-1 text-[11px] font-bold text-cn-ink/60">
+                  先看一遍排版，确认没问题后导出为 PDF。
+                </p>
+              </div>
+              <div className="flex flex-shrink-0 items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handlePrintExportPreview}
+                  className="flex items-center gap-1.5 rounded-full border-2 border-cn-ink bg-cn-yellow px-3 py-1.5 text-xs font-black text-cn-ink hover:bg-cn-red hover:text-white"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  导出为 PDF
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setExportPreview(null)}
+                  className="rounded-full border-2 border-cn-ink bg-white p-1.5 hover:bg-cn-yellow"
+                  title="关闭"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+            <div className="min-h-0 flex-1 bg-[#ECE7DD] p-3">
+              <iframe
+                ref={exportFrameRef}
+                srcDoc={exportPreview.html}
+                title={exportPreview.title}
+                className="h-full w-full rounded-2xl border-2 border-cn-ink bg-white shadow-inner"
+              />
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {detailModal ? (
+        <div className="absolute inset-0 z-[90] flex items-center justify-center bg-cn-ink/60 px-4 py-6 backdrop-blur-[3px]">
+          <div className="relative w-full max-w-3xl overflow-hidden rounded-3xl border-2 border-cn-ink bg-[#FFF8E8] shadow-[6px_6px_0px_rgba(26,43,60,0.28)]">
+            <div className="absolute left-4 top-4 h-8 w-8 rounded-br-2xl border-l-2 border-t-2 border-[#A56E3F]/55" />
+            <div className="absolute right-4 top-4 h-8 w-8 rounded-bl-2xl border-r-2 border-t-2 border-[#A56E3F]/55" />
+            <div className="absolute bottom-4 left-4 h-8 w-8 rounded-tr-2xl border-b-2 border-l-2 border-[#A56E3F]/55" />
+            <div className="absolute bottom-4 right-4 h-8 w-8 rounded-tl-2xl border-b-2 border-r-2 border-[#A56E3F]/55" />
+            <div className="relative border-b-2 border-[#A56E3F]/25 bg-[#FFF1D6] px-5 py-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className={`flex h-11 w-11 items-center justify-center rounded-2xl border-2 border-cn-ink bg-white shadow-[2px_2px_0px_rgba(26,43,60,0.16)] ${
+                    detailModal === "culture" ? "text-[#7C4E2B]" : detailModal === "ranker" ? "text-[#B95F13]" : "text-cn-red"
+                  }`}>
+                    {detailModal === "culture" ? (
+                      <ScrollText className="h-6 w-6" />
+                    ) : detailModal === "ranker" ? (
+                      <Sparkles className="h-6 w-6" />
+                    ) : (
+                      <MessageCircleQuestion className="h-6 w-6" />
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-lg font-black leading-tight text-cn-ink">
+                      {detailModal === "culture" ? "文化基因卡" : detailModal === "ranker" ? "墨韵 Ranker" : "亲子互动卡"}
+                    </p>
+                    <p className="mt-1 text-[11px] font-bold text-cn-ink/60">
+                      {detailModal === "culture"
+                        ? "把传统文化内核转成孩子能理解的故事力量"
+                        : detailModal === "ranker"
+                          ? "按页面内容挑选水墨风格词，内容始终优先"
+                          : `${familyNames}读完后可以继续共创`}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setDetailModal(null)}
+                  className="rounded-full border-2 border-cn-ink bg-white p-1.5 hover:bg-cn-yellow"
+                  title="关闭"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+            <div className="relative max-h-[72vh] overflow-y-auto p-5 hide-scrollbar">
+              {detailModal === "culture" && culture ? (
+                <div className="space-y-4">
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {culture.hits.map((hit, index) => (
+                      <div key={`${hit.title}-${index}`} className="rounded-2xl border-2 border-[#A56E3F]/35 bg-[#FFFDF6] p-4 shadow-[2px_2px_0px_rgba(165,110,63,0.12)]">
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                          <p className="text-base font-black text-cn-ink">{hit.title}</p>
+                          <span className="rounded-full border border-[#A56E3F]/45 bg-[#FFF1D6] px-2 py-0.5 text-[10px] font-black text-[#7C4E2B]">
+                            {hit.category || "文化基因"}
+                          </span>
+                        </div>
+                        <div className="mb-3 rounded-xl border border-[#A56E3F]/25 bg-white/75 px-3 py-2">
+                          <div className="flex items-center gap-1.5">
+                            <Sparkles className="h-3.5 w-3.5 text-[#A56E3F]" />
+                            <p className="text-[11px] font-black text-[#6B4429]">传统故事简介</p>
+                          </div>
+                          <p className="mt-1.5 text-[12px] font-bold leading-relaxed text-cn-ink/72">
+                            {hit.story_summary || `《${hit.title}》来自${hit.source || hit.category || "传统文化"}，这里展示它适合孩子理解的文化背景和故事线索。`}
+                          </p>
+                        </div>
+                        {hit.core_idea ? (
+                          <p className="text-[12px] font-bold leading-relaxed text-cn-ink/75">
+                            <span className="font-black text-[#6B4429]">文化内核：</span>{hit.core_idea}
+                          </p>
+                        ) : null}
+                        {hit.child_friendly_takeaway ? (
+                          <p className="mt-2 text-[12px] font-bold leading-relaxed text-cn-ink/70">
+                            <span className="font-black text-[#6B4429]">给孩子的话：</span>{hit.child_friendly_takeaway}
+                          </p>
+                        ) : null}
+                        {hit.visual_motifs?.length ? (
+                          <div className="mt-3 flex flex-wrap gap-1.5">
+                            {hit.visual_motifs.slice(0, 6).map((motif) => (
+                              <span key={motif} className="rounded-full border border-[#A56E3F]/30 bg-white px-2 py-0.5 text-[10px] font-bold text-cn-ink/65">
+                                {motif}
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
+                        {hit.score !== undefined ? (
+                          <p className="mt-3 text-[10px] font-bold text-cn-ink/45">匹配度 {hit.score}</p>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              {detailModal === "ranker" ? (
+                <div className="space-y-4">
+                  <div className="rounded-2xl border-2 border-[#D9771F]/45 bg-[#FFF2DC] p-4">
+                    <p className="text-sm font-black text-[#8A4A12]">每页 Top 3 画风词</p>
+                    <p className="mt-2 text-sm font-bold leading-relaxed text-[#8A4A12]/75">
+                      Ranker 会按每页内容挑选画风词；如果风格词和画面内容不一致，以这一页的角色、道具和场景为准。
+                    </p>
+                    {rankerKeywords.length > 0 ? (
+                      <div className="mt-3 flex flex-wrap gap-1.5">
+                        {rankerKeywords.slice(0, 3).map((keyword) => (
+                          <span key={keyword} className="rounded-full border border-[#D9771F]/25 bg-white/80 px-2 py-1 text-[10px] font-black text-[#8A4A12]/75">
+                            {keyword}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {styleKeywordEnhancements.map((item, index) => {
+                      const sceneNo = item.scene_no ?? index + 1;
+                      return (
+                        <div key={`${sceneNo}-${index}`} className="rounded-2xl border-2 border-[#D9771F]/25 bg-[#FFFDF6] p-4 shadow-[2px_2px_0px_rgba(217,119,31,0.08)]">
+                          <div className="mb-2 flex items-center justify-between gap-2">
+                            <p className="text-sm font-black text-cn-ink">第 {sceneNo} 页</p>
+                            <span className="rounded-full border border-[#D9771F]/25 bg-[#FFF2DC] px-2 py-0.5 text-[10px] font-black text-[#8A4A12]/70">
+                              {item.style || "水墨"}
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {(item.selected_keywords || []).slice(0, 3).map((keyword) => (
+                              <span key={keyword} className="rounded-full border border-[#D9771F]/20 bg-[#FFF2DC]/75 px-2 py-1 text-[10px] font-black text-[#8A4A12]/75">
+                                {keyword}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
+
+              {detailModal === "interaction" ? (
+                <div className="space-y-4">
+                  <div className="rounded-2xl border-2 border-cn-red/35 bg-white/80 p-4">
+                    <p className="text-sm font-black text-cn-red">读完继续玩</p>
+                    <p className="mt-2 text-sm font-bold leading-relaxed text-cn-ink/70">
+                      这些卡片可以在读完一页或整本书后抽取使用，让孩子和家长一起说、一起演、一起画。
+                    </p>
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-3">
+                    {interactionCards.map((card) => {
+                      const Icon = card.type === "act" ? Theater : card.type === "draw" ? Paintbrush : MessageCircleQuestion;
+                      return (
+                        <div key={card.id} className="relative min-h-[190px] rounded-2xl border-2 border-cn-red/45 bg-[#FFFDF6] p-4 shadow-[3px_3px_0px_rgba(201,72,48,0.12)]">
+                          <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl border-2 border-cn-red bg-cn-red/10 text-cn-red">
+                            <Icon className="h-5 w-5" />
+                          </div>
+                          <p className="text-base font-black text-cn-ink">{card.title}</p>
+                          <p className="mt-3 text-[13px] font-bold leading-relaxed text-cn-ink/70">{card.prompt}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

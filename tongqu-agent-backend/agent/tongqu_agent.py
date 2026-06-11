@@ -15,6 +15,7 @@ from agent.tools import CharacterScriptEntry, StoryPlanningArgs, TongquToolHandl
 from config import CONFIG
 from core.clients import ApiKeyError, FAMILY_PHOTO_VL_USER_PROMPT, SKETCH_VL_USER_PROMPT
 from core.models import CreationSource, Scene
+from core.safety import CHILD_SAFETY_BLOCK_MESSAGE
 from services.culture_rag import CultureHit, CultureRagService
 from services.sketch_service import SketchUnderstandingService
 from services.story_pipeline import StorybookPipeline
@@ -40,14 +41,16 @@ _REACT_SYSTEM_PROMPT = """你是「童趣绘梦」的儿童绘本主理人，负
 你必须使用提供的工具（Function Calling）完成工作，不要只在对话里讲故事而不调用工具。
 
 **标准作业流程（SOP）——须严格遵守：**
-1. 若工作区标明「用户带有草图图片或亲子合照」，必须先调用 `analyze_sketch` 获取画面语义；亲子合照会在该工具内完成图片安全审核。若无图片，可跳过此步。
+0. 如果工作区、用户原始输入、工具返回、草稿正文或最终分镜中出现血腥、暴力、恐怖、色情、歧视、违法或任何4～10岁儿童不宜内容，必须立即调用 `stop_creation` 停止本轮创作，不得继续改写、分镜、配图或调用 `finish_creation`。
+1. 若工作区标明「用户带有草图图片、亲子合照或角色库参考图」，必须先调用 `analyze_sketch` 获取画面语义；亲子视觉参考会在该工具内完成图片安全审核。若无图片，可跳过此步。
 2. 调用 `retrieve_culture`：基于 safe_keywords、sketch_text 与（若有）visual_semantics 检索文化语料，取得 culture_context。
 3. 调用 `draft_story`：结合工作区中的「用于写故事的核心素材 safe_keywords」、（若有）视觉语义与 culture_context，一次性生成标题、大纲、人物脚本、价值观、完整故事正文（350-600 字）和 4-6 个连续分镜页面。
-4. 调用 `review_safety`：对故事正文做自我审查（BERT 位点）。若结果不安全或高风险，**不要**继续分镜，应再次调用 `draft_story` 改写后再调用 `review_safety`。
+4. 调用 `review_safety`：对故事正文做自我审查（BERT/Guard 位点）。若结果不安全、高风险或返回 should_stop=true，**不要**继续分镜或重写，应调用 `stop_creation`。
 5. 当你确认 `draft_story` 已返回合理分镜且安全审查通过后，调用 `finish_creation` 传入 `title`、`story_body_zh` 与 `scenes` 列表以**结束**整个创作流程。
 
 **重要约束：**
 - 面向 4～10 岁儿童，积极正向；不得输出违法、暴力、色情、恐怖或歧视内容。
+- `stop_creation` 是安全停止能力：一旦发现输入或输出不适合儿童，必须使用它结束本轮，不得尝试把不安全内容包装成可生成的故事。
 - 最终必须由 `finish_creation` 收尾；不要在没有调用 `finish_creation` 的情况下声称工作已完成。
 - 若某工具返回含 error 字段的 JSON，请阅读说明并修正参数或重试。
 """
@@ -113,7 +116,7 @@ def _build_react_tools() -> list[dict[str, Any]]:
             "type": "function",
             "function": {
                 "name": "analyze_sketch",
-                "description": "当用户上传了草图图片或亲子合照时调用：走 VL 完成画面理解；亲子合照会同时做儿童安全审核。无图时不应声称有图。",
+                "description": "当用户上传了草图图片、亲子合照或角色库参考图时调用：走 VL 完成画面理解；亲子视觉参考会同时做儿童安全审核。无图时不应声称有图。",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -159,7 +162,7 @@ def _build_react_tools() -> list[dict[str, Any]]:
             "type": "function",
             "function": {
                 "name": "retrieve_culture",
-                "description": "基于安全素材和草图语义检索中国传统文化 frontmatter RAG 字段，返回可注入故事策划的短上下文。",
+                "description": "基于安全素材和草图语义检索中国传统文化资料 RAG 字段，返回可注入故事策划的短上下文。",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -189,6 +192,32 @@ def _build_react_tools() -> list[dict[str, Any]]:
                         "story_body_zh": {"type": "string", "description": "完整故事正文（中文）。"}
                     },
                     "required": ["story_body_zh"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "stop_creation",
+                "description": "当发现输入、草稿、分镜或最终成稿包含4-10岁儿童不宜内容时调用，立即停止本轮创作。",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "reason": {
+                            "type": "string",
+                            "description": "停止原因，面向审计与家长查看。",
+                        },
+                        "child_friendly_message": {
+                            "type": "string",
+                            "description": "给孩子看的温和提示语。",
+                        },
+                        "risk_hits": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "可选：触发的风险词或风险类别。",
+                        },
+                    },
+                    "required": ["reason", "child_friendly_message"],
                 },
             },
         },
@@ -412,6 +441,40 @@ class TongquAgent:
             "source_visual_semantics": self._ctx_visual_semantics,
         }
 
+    def _safety_block_result(
+        self,
+        *,
+        detail: str | None = None,
+        hits: list[str] | None = None,
+        guard_review: dict[str, Any] | None = None,
+        source: str = "input",
+    ) -> dict[str, Any]:
+        return {
+            "ok": False,
+            "code": "safety_blocked",
+            "safety_blocked": True,
+            "should_stop": True,
+            "error": "安全预审未通过",
+            "detail": detail or CHILD_SAFETY_BLOCK_MESSAGE,
+            "mode": "real",
+            "title": "",
+            "story_text": "",
+            "scenes": [],
+            "image_urls": [],
+            "audio_urls": [],
+            "input_blocked": True,
+            "input_hits": hits or [],
+            "safety_source": source,
+            "safety_review": guard_review or {},
+            "style_keyword_enhancer_enabled": False,
+            "style_keywords": [],
+            "enhanced_keywords_prompt": "",
+            "image_prompt_enhancements": [],
+            "style_keyword_model_used": False,
+            "style_keyword_model_error": None,
+            "intercept_logs": self._story.safety_middleware.list_intercept_logs(),
+        }
+
     def _retrieve_culture_for_query(self, query: str, top_k: int | None = None) -> dict[str, Any]:
         query = (query or "").strip()
         if self._ctx_culture_hits and query and query == self._ctx_culture_query:
@@ -479,7 +542,7 @@ class TongquAgent:
             "image_kind": ctx.image_kind,
             "image_safety_passed": ctx.image_safety_passed,
             "message": (
-                "亲子合照已通过安全审核并生成角色锚点，请继续调用 retrieve_culture，并把 visual_semantics 与 core_keywords 一起作为 query。"
+                "亲子视觉参考已通过安全审核并生成角色锚点，请继续调用 retrieve_culture，并把 visual_semantics 与 core_keywords 一起作为 query。"
                 if image_kind == "family_photo"
                 else "草图语义已生成，请继续调用 retrieve_culture，并把 visual_semantics 与 core_keywords 一起作为 query。"
             ),
@@ -515,7 +578,7 @@ class TongquAgent:
             and self._ctx_visual_semantics
             and self._ctx_visual_semantics not in core
         ):
-            core = f"{core}\n\n【亲子合照理解】{self._ctx_visual_semantics}".strip()
+            core = f"{core}\n\n【亲子视觉参考理解】{self._ctx_visual_semantics}".strip()
         style = (args.get("style") or self._ctx_style).strip()
         vs = args.get("visual_semantics")
         if isinstance(vs, str) and not vs.strip():
@@ -542,12 +605,14 @@ class TongquAgent:
         if not body:
             raise ValueError("story_body_zh 不能为空")
         bert = await self._story.safety_middleware.review_text_with_bert(body)
-        passed = bool(bert.get("passed", True)) and bert.get("risk_level") != "high"
+        should_stop = self._story.safety_middleware.review_blocks_child_content(bert)
+        passed = not should_stop
         return {
             **bert,
             "safe_for_storyboard": passed,
+            "should_stop": should_stop,
             "next_step_hint": (
-                "请再次调用 draft_story 改写故事正文，然后再调用 review_safety。"
+                "请立即调用 stop_creation，停止本轮创作并给孩子一个温和提示。"
                 if not passed
                 else "可直接调用 finish_creation，使用 draft_story 返回的 scenes 完成提交。"
             ),
@@ -617,6 +682,20 @@ class TongquAgent:
         }
         return ack, scenes
 
+    def _tool_stop_creation(self, args: dict[str, Any]) -> dict[str, Any]:
+        hits = args.get("risk_hits")
+        risk_hits = [str(item) for item in hits] if isinstance(hits, list) else []
+        detail = str(args.get("child_friendly_message") or "").strip() or CHILD_SAFETY_BLOCK_MESSAGE
+        reason = str(args.get("reason") or "").strip()
+        payload = self._safety_block_result(
+            detail=detail,
+            hits=risk_hits,
+            guard_review={"agent_reason": reason},
+            source="react_agent",
+        )
+        payload["error"] = "中枢 Agent 已停止创作"
+        return payload
+
     async def _dispatch_tool(
         self, name: str, arguments_json: str
     ) -> tuple[str, Optional[tuple[str, str, List[Scene]]]]:
@@ -634,10 +713,23 @@ class TongquAgent:
                 payload = await self._tool_draft_story(args)
             elif name == "review_safety":
                 payload = await self._tool_review_safety(args)
+            elif name == "stop_creation":
+                payload = self._tool_stop_creation(args)
             elif name == "generate_storyboard":
                 payload = await self._tool_generate_storyboard(args)
             elif name == "finish_creation":
                 ack, scenes = self._tool_finish_creation(args)
+                final_review = await self._story.safety_middleware.review_text_with_bert(
+                    " ".join([ack["title"], ack["story_body_zh"], *[scene.text for scene in scenes]])
+                )
+                if self._story.safety_middleware.review_blocks_child_content(final_review):
+                    payload = self._safety_block_result(
+                        detail=CHILD_SAFETY_BLOCK_MESSAGE,
+                        hits=[str(item) for item in final_review.get("hits") or []],
+                        guard_review=final_review,
+                        source="finish_creation_review",
+                    )
+                    return json.dumps(payload, ensure_ascii=False), None
                 return json.dumps(ack, ensure_ascii=False), (
                     ack["title"],
                     ack["story_body_zh"],
@@ -722,32 +814,6 @@ class TongquAgent:
             else CreationSource.from_optional(creation_source)
         )
 
-        llm = self._story.llm_client
-        if not hasattr(llm, "chat_completion"):
-            return self._merge_agent_fields(
-                {
-                    "ok": False,
-                    "error": "当前叙事模型不支持 Function Calling，请使用百炼 OpenAI 兼容网关并配置 DASHSCOPE_COMPAT_BASE_URL。",
-                    "detail": "DashScopeQwenClient.chat_completion 不可用",
-                    "mode": "real",
-                    "title": "",
-                    "story_text": "",
-                    "scenes": [],
-                    "image_urls": [],
-                    "audio_urls": [],
-                    "style_keyword_enhancer_enabled": False,
-                    "style_keywords": [],
-                    "enhanced_keywords_prompt": "",
-                    "image_prompt_enhancements": [],
-                    "style_keyword_model_used": False,
-                    "style_keyword_model_error": None,
-                    "intercept_logs": self._story.safety_middleware.list_intercept_logs(),
-                },
-                creation_source=src.value,
-                sketch_vl_used=False,
-                sketch_understanding=None,
-            )
-
         await self._emit_progress(
             on_progress,
             "orchestrate",
@@ -781,11 +847,62 @@ class TongquAgent:
             detail=(
                 "输入素材可继续创作。"
                 if not filtered["blocked"]
-                else "输入命中敏感项，已使用安全改写后的素材继续。"
+                else "输入命中儿童不宜内容，已停止本轮创作。"
             ),
             hits=filtered["hits"],
             safe_keywords=safe_keywords[:240],
         )
+        if filtered.get("blocked"):
+            await self._emit_progress(
+                on_progress,
+                "orchestrate",
+                "创作已停止",
+                "这个灵感不太适合小朋友，我们没有继续生成绘本。",
+            )
+            await self._emit_agent_trace(
+                on_progress,
+                kind="error",
+                title="安全预审已拦截",
+                detail=filtered.get("friendly_message") or CHILD_SAFETY_BLOCK_MESSAGE,
+                hits=filtered.get("hits") or [],
+            )
+            return self._merge_agent_fields(
+                self._safety_block_result(
+                    detail=filtered.get("friendly_message") or CHILD_SAFETY_BLOCK_MESSAGE,
+                    hits=[str(item) for item in filtered.get("hits") or []],
+                    guard_review=filtered.get("guard_review") or {},
+                    source="input_guard",
+                ),
+                creation_source=src.value,
+                sketch_vl_used=False,
+                sketch_understanding=None,
+            )
+
+        llm = self._story.llm_client
+        if not hasattr(llm, "chat_completion"):
+            return self._merge_agent_fields(
+                {
+                    "ok": False,
+                    "error": "当前叙事模型不支持 Function Calling，请使用百炼 OpenAI 兼容网关并配置 DASHSCOPE_COMPAT_BASE_URL。",
+                    "detail": "DashScopeQwenClient.chat_completion 不可用",
+                    "mode": "real",
+                    "title": "",
+                    "story_text": "",
+                    "scenes": [],
+                    "image_urls": [],
+                    "audio_urls": [],
+                    "style_keyword_enhancer_enabled": False,
+                    "style_keywords": [],
+                    "enhanced_keywords_prompt": "",
+                    "image_prompt_enhancements": [],
+                    "style_keyword_model_used": False,
+                    "style_keyword_model_error": None,
+                    "intercept_logs": self._story.safety_middleware.list_intercept_logs(),
+                },
+                creation_source=src.value,
+                sketch_vl_used=False,
+                sketch_understanding=None,
+            )
 
         enhancer_enabled, enhancement, material_for_llm = self._build_enhancement_for_react(
             safe_keywords,
@@ -892,7 +1009,7 @@ class TongquAgent:
                     messages.append(
                         {
                             "role": "user",
-                            "content": "请使用工具继续：若有草图或亲子合照请先 analyze_sketch，然后 retrieve_culture，再 draft_story → review_safety → finish_creation。draft_story 会一次返回 story_body_zh 与 4-6 页 scenes。",
+                            "content": "请使用工具继续：若发现输入或输出不适合4-10岁儿童，请调用 stop_creation；否则若有草图、亲子合照或角色库参考图请先 analyze_sketch，然后 retrieve_culture，再 draft_story → review_safety → finish_creation。draft_story 会一次返回 story_body_zh 与 4-6 页 scenes。",
                         }
                     )
                     continue
@@ -907,13 +1024,14 @@ class TongquAgent:
                         title=f"调用工具：{name}",
                         detail={
                             "analyze_sketch": (
-                                "先审核亲子合照并提取安全角色锚点，再把视觉语义补进故事素材。"
+                                "先审核亲子视觉参考并提取安全角色锚点，再把视觉语义补进故事素材。"
                                 if src == CreationSource.FAMILY
                                 else "先理解草图里的角色、场景和动作，再把视觉语义补进故事素材。"
                             ),
                             "retrieve_culture": "根据安全素材和草图语义检索传统文化条目，提取可儿童化改写的核心思想。",
                             "draft_story": "把用户素材、草图语义和文化参考交给故事策划工具，一次生成标题、正文、价值观和 4-6 页分镜。",
-                            "review_safety": "对故事正文做儿童安全初审，不通过则要求重新改写。",
+                            "review_safety": "对故事正文做儿童安全初审，不通过则停止本轮创作。",
+                            "stop_creation": "安全兜底触发，停止本轮创作并返回适合孩子看的提示。",
                             "generate_storyboard": "把故事拆成分镜，并生成每页英文生图提示词。",
                             "finish_creation": "确认结构化成稿，准备进入配图和语音合成流水线。",
                         }.get(name, "执行中枢选择的工具。"),
@@ -923,7 +1041,7 @@ class TongquAgent:
                         await self._emit_progress(
                             on_progress,
                             "sketch",
-                            "审核亲子合照" if src == CreationSource.FAMILY else "解析草图灵感",
+                            "理解亲子素材" if src == CreationSource.FAMILY else "解析草图灵感",
                             (
                                 "正在进行合照安全审核，并提取可儿童化改写的亲子角色锚点"
                                 if src == CreationSource.FAMILY
@@ -935,7 +1053,7 @@ class TongquAgent:
                             on_progress,
                             "culture",
                             "检索文化语料",
-                            "正在从传统文化 frontmatter 中提取可改写灵感",
+                            "正在从传统文化资料中提取可改写灵感",
                         )
                     elif name == "draft_story":
                         await self._emit_progress(
@@ -1018,8 +1136,9 @@ class TongquAgent:
                             "review_safety": (
                                 "安全初审通过，可以提交结构化成稿。"
                                 if tool_payload.get("safe_for_storyboard")
-                                else "安全初审未通过，中枢会要求重新改写故事。"
+                                else "安全初审未通过，中枢会停止本轮创作。"
                             ),
+                            "stop_creation": "创作已安全停止，等待用户换一个更适合小朋友的灵感。",
                             "generate_storyboard": f"分镜生成完成，共 {tool_payload.get('count', 0)} 页。",
                             "finish_creation": "结构化成稿已确认，进入插图与朗读制作。",
                         }.get(name, "工具执行完成。")
@@ -1029,6 +1148,20 @@ class TongquAgent:
                             title=f"工具结果：{name}",
                             detail=summary,
                             turn=step,
+                        )
+                    if isinstance(tool_payload, dict) and tool_payload.get("safety_blocked"):
+                        await self._emit_agent_trace(
+                            on_progress,
+                            kind="error",
+                            title="创作已安全停止",
+                            detail=str(tool_payload.get("detail") or CHILD_SAFETY_BLOCK_MESSAGE),
+                            turn=step,
+                        )
+                        return self._merge_agent_fields(
+                            tool_payload,
+                            creation_source=src.value,
+                            sketch_vl_used=self._ctx_vl_used,
+                            sketch_understanding=self._ctx_visual_semantics,
                         )
                     messages.append(
                         {

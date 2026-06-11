@@ -15,20 +15,28 @@ const CATEGORIES: Category[] = [
 
 interface KeywordsSelectorProps {
   onSelectionChange?: (payload: KeywordSelectionPayload) => void;
+  value?: KeywordSelectionPayload;
 }
 
-export function KeywordsSelector({ onSelectionChange }: KeywordsSelectorProps) {
-  const [payload, setPayload] = useState<KeywordSelectionPayload>(() => ({
-    theme: { tags: [], custom: "" },
-    character: { tags: [], custom: "" },
-    scene: { tags: [], custom: "" },
-  }));
+export function KeywordsSelector({ onSelectionChange, value }: KeywordsSelectorProps) {
+  const [payload, setPayload] = useState<KeywordSelectionPayload>(() =>
+    value ?? {
+      theme: { tags: [], custom: "" },
+      character: { tags: [], custom: "" },
+      scene: { tags: [], custom: "" },
+    },
+  );
   /** 为 true 或已有自定义文字时显示输入框 */
   const [customOpen, setCustomOpen] = useState<Record<CategoryId, boolean>>({
     theme: false,
     character: false,
     scene: false,
   });
+
+  useEffect(() => {
+    if (!value) return;
+    setPayload(value);
+  }, [value]);
 
   useEffect(() => {
     onSelectionChange?.(payload);
