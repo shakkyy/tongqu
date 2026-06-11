@@ -360,7 +360,7 @@ export default function App() {
   const activateClassroomDemo = useCallback(() => {
     setDemoActive(true);
     setAppView("create");
-    setCreationMode("family");
+    setCreationMode("voice");
     setStyle("ink-wash");
     setRemotePages(null);
     setBookMeta(null);

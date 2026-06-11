@@ -1034,7 +1034,7 @@ export const CLASSROOM_DEMO_FIXTURES: Record<DemoCreationMode, ClassroomDemoFixt
 };
 
 export function getClassroomDemoFixture(mode: DemoCreationMode | string): ClassroomDemoFixture {
-  return CLASSROOM_DEMO_FIXTURES[(mode as DemoCreationMode) in CLASSROOM_DEMO_FIXTURES ? (mode as DemoCreationMode) : "family"];
+  return CLASSROOM_DEMO_FIXTURES[(mode as DemoCreationMode) in CLASSROOM_DEMO_FIXTURES ? (mode as DemoCreationMode) : "voice"];
 }
 
 function createBookshelfEntryFromFixture(fixture: ClassroomDemoFixture): BookshelfEntry {
@@ -1053,7 +1053,7 @@ function createBookshelfEntryFromFixture(fixture: ClassroomDemoFixture): Bookshe
 }
 
 export function createClassroomDemoBookshelfEntries(): BookshelfEntry[] {
-  return ["family", "voice", "keywords", "sketch"].map((mode) =>
+  return ["voice", "keywords", "sketch", "family"].map((mode) =>
     createBookshelfEntryFromFixture(getClassroomDemoFixture(mode)),
   );
 }
