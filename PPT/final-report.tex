@@ -285,49 +285,70 @@
     \vspace{-0.38cm}
     \centering
     \begin{tikzpicture}[
-      scale=0.66, transform shape,
+      scale=0.72, transform shape,
       font=\scriptsize,
       >=Latex,
-      arr/.style={-{Latex[length=2.2mm]}, line width=0.9pt, draw=accentgold!90!black},
-      io/.style={draw=buptred, dashed, rounded corners=4pt, line width=1pt, fill=lightred!18, align=center, inner sep=5pt, text width=1.9cm, font=\scriptsize},
-      backend/.style={draw=buptred, dashed, rounded corners=8pt, line width=1.05pt, fill=white, inner sep=6pt},
-      mod/.style={draw=buptred!90, rounded corners=2.2pt, line width=0.85pt, fill=white, align=center, minimum height=0.78cm, text width=1.7cm, font=\scriptsize},
-      subagent/.style={draw=buptred!90, rounded corners=1.7pt, line width=0.65pt, fill=white, align=center,
-        inner sep=1.8pt, minimum height=0.54cm, text width=1.86cm, font=\fontsize{5.4}{6.2}\selectfont},
-      core/.style={draw=buptred, diamond, aspect=1.8, line width=1pt, fill=lightred!30, align=center, inner sep=1.2pt, minimum width=1.7cm, minimum height=1.0cm, font=\scriptsize},
-      childbox/.style={draw=buptred!88, rounded corners=6pt, line width=0.95pt, fill=lightred!10, inner sep=4pt},
-      db/.style={cylinder, shape border rotate=90, aspect=0.26, draw=buptred, line width=0.9pt, fill=white, minimum height=1.3cm, minimum width=2.0cm, align=center, font=\scriptsize},
+      layer/.style={draw=buptred!58, rounded corners=5pt, line width=0.85pt, fill=white, inner sep=4pt},
+      layerlabel/.style={anchor=west, text=buptred, font=\bfseries\scriptsize},
+      box/.style={draw=buptred, rounded corners=3pt, line width=0.9pt, fill=white, align=center, text width=2.05cm, minimum height=0.78cm, inner sep=3pt},
+      core/.style={draw=buptred, rounded corners=4pt, line width=1.15pt, fill=lightred!28, align=center, text width=2.35cm, minimum height=0.95cm, inner sep=4pt},
+      support/.style={draw=buptred!88, dashed, rounded corners=3pt, line width=0.8pt, fill=white, align=center, text width=2.25cm, minimum height=0.72cm, inner sep=3pt},
+      tag/.style={draw=buptred!78, rounded corners=2pt, line width=0.65pt, fill=white, align=center, text width=1.78cm, minimum height=0.46cm, inner sep=2pt, font=\tiny},
+      arr/.style={-{Latex[length=2.2mm]}, line width=0.9pt, draw=buptred},
+      assist/.style={-{Latex[length=1.8mm]}, line width=0.75pt, draw=buptred!68, dashed},
     ]
-      \node[io] (user) at (-0.6,0.15) {\textbf{用户输入}\\[2pt]语音 / 选词 / 草图 / 亲子};
+      \node[layer, minimum width=15.15cm, minimum height=1.08cm, anchor=west] at (0,0) {};
+      \node[layerlabel] at (0.18,0.38) {输入层};
+      \node[tag] (voice) at (2.10,0) {语音输入};
+      \node[tag] (keyword) at (4.40,0) {关键词选择};
+      \node[tag] (sketch) at (6.70,0) {手绘草图};
+      \node[tag] (family) at (9.00,0) {亲子素材};
+      \node[tag, text width=2.05cm] (front) at (12.20,0) {前端交互\\阅读 / 书架};
 
-      \node[backend, minimum width=8.15cm, minimum height=6.20cm, anchor=west] (srv) at (1.95,-0.75) {};
-      \node[anchor=south, text=buptred] at ($(srv.north)+(0,0.06)$) {\textbf{\large 后端服务}};
+      \node[layer, minimum width=15.15cm, minimum height=1.55cm, anchor=west] at (0,-1.60) {};
+      \node[layerlabel] at (0.18,-1.02) {后端编排层};
+      \node[box] (guard) at (2.00,-1.60) {\textbf{安全预审}\\[-1pt]\tiny Qwen-Guard};
+      \node[core] (hub) at (5.05,-1.60) {\textbf{中枢 Agent}\\[-1pt]\tiny 理解意图 / 任务规划};
+      \node[box, text width=2.55cm] (agents) at (8.45,-1.60) {\textbf{子 Agent 协作}\\[-1pt]\tiny 故事 / 分镜 / 插图 / TTS};
+      \node[box] (audit) at (11.65,-1.60) {\textbf{输出复核}\\[-1pt]\tiny 文本 / 图像 / 价值观};
+      \node[box, text width=1.82cm] (book) at (14.00,-1.60) {\textbf{成书输出}\\[-1pt]\tiny 绘本 / 朗读};
 
-      \node[mod, minimum width=0.9cm, text width=0.8cm, minimum height=1.45cm] (safe) at (2.7,0.2) {\textbf{Qwen\\Guard}};
-      \node[core] (hub) at (4.75,0.2) {\textbf{中枢 Agent}};
-      \node[db] (rag) at (7.65,1.15) {\textbf{本地语料库}\\[-1pt]\tiny RAG 检索};
-      \node[mod, text width=1.7cm, minimum height=0.72cm] (ranker) at (7.65,-0.75) {\textbf{墨韵 Ranker}\\[-2pt]\tiny 提示词增强};
+      \draw[arr] (voice.south) -- ++(0,-0.36) -| (guard.north);
+      \draw[arr] (keyword.south) -- ++(0,-0.36) -| (guard.north);
+      \draw[arr] (sketch.south) -- ++(0,-0.36) -| (guard.north);
+      \draw[arr] (family.south) -- ++(0,-0.36) -| (guard.north);
+      \draw[arr] (guard.east) -- (hub.west);
+      \draw[arr] (hub.east) -- (agents.west);
+      \draw[arr] (agents.east) -- (audit.west);
+      \draw[arr] (audit.east) -- (book.west);
 
-      \node[childbox, minimum width=7.15cm, minimum height=2.35cm, anchor=north] (child) at (6.18,-1.42) {};
-      \node[anchor=north, font=\scriptsize] at ($(child.north)+(0,-0.10)$) {\textbf{子 Agent 协作域}};
-      \node[subagent] (narr) at (4.35,-2.18) {\textbf{故事撰写}};
-      \node[subagent] (visual) at (7.65,-2.18) {\textbf{插图生成}};
-      \node[subagent] (book) at (4.35,-3.06) {\textbf{GPT-SoVITS}};
-      \node[subagent] (audit) at (7.65,-3.06) {\textbf{安全审查}};
+      \node[layer, minimum width=15.15cm, minimum height=1.25cm, anchor=west] at (0,-3.32) {};
+      \node[layerlabel] at (0.18,-2.86) {能力支撑层};
+      \node[support] (rag) at (2.28,-3.32) {\textbf{中国风故事库}\\[-1pt]\tiny 738 篇 / RAG 召回};
+      \node[support] (vision) at (5.38,-3.32) {\textbf{视觉理解}\\[-1pt]\tiny 草图 / 亲子素材};
+      \node[support] (ranker) at (8.48,-3.32) {\textbf{墨韵 Ranker}\\[-1pt]\tiny 中国风画面增强};
+      \node[support] (tts) at (11.58,-3.32) {\textbf{GPT-SoVITS}\\[-1pt]\tiny 逐页朗读音频};
+      \node[support, text width=1.80cm] (log) at (14.00,-3.32) {\textbf{拦截日志}\\[-1pt]\tiny 可追溯审查};
 
-      \node[io, text width=1.75cm] (out) at (11.85,0.2) {\textbf{成书输出}\\[2pt]绘本 / 配图 / 朗读};
+      \draw[assist] (rag.north) -- (hub.south);
+      \draw[assist] (vision.north) -- (hub.south);
+      \draw[assist] (ranker.north) -- (agents.south);
+      \draw[assist] (tts.north) -- (agents.south);
+      \draw[assist] (log.north) -- (audit.south);
 
-      \draw[arr] (user.east) -- (safe.west);
-      \draw[arr] (safe.east) -- (hub.west);
-      \draw[arr] (hub.east) -- (out.west);
+      \node[layer, minimum width=15.15cm, minimum height=0.96cm, anchor=west] at (0,-4.90) {};
+      \node[layerlabel] at (0.18,-4.55) {结果层};
+      \node[tag] (story) at (3.00,-4.90) {完整故事\\分镜旁白};
+      \node[tag] (image) at (5.55,-4.90) {中国风插图};
+      \node[tag] (audio) at (8.10,-4.90) {逐页朗读};
+      \node[tag] (cards) at (10.65,-4.90) {文化 / Ranker\\互动卡};
+      \node[tag] (shelf) at (13.20,-4.90) {书架收藏\\分享导出};
 
-      \draw[arr] (hub.north east) -- (rag.west);
-      \draw[arr] (hub.east) -- (ranker.west);
-      \draw[arr] (ranker.south) -- (visual.north);
-
-      \draw[arr] (hub.south) -- ($(child.north)+(0,0.02)$);
-
-      % (子 Agent 协作域内部连线已移除)
+      \draw[arr] (book.south) -- ++(0,-0.35) -| (story.north);
+      \draw[arr] (book.south) -- ++(0,-0.35) -| (image.north);
+      \draw[arr] (book.south) -- ++(0,-0.35) -| (audio.north);
+      \draw[arr] (book.south) -- ++(0,-0.35) -| (cards.north);
+      \draw[arr] (book.south) -- ++(0,-0.35) -| (shelf.north);
     \end{tikzpicture}
 
     \vspace{-0.08cm}
