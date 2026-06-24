@@ -7,6 +7,7 @@ import type {
   StoryStyle,
   StyleKeywordEnhancement,
 } from "../types";
+import { CULTURE_STORIES } from "../data/cultureStories";
 import type { BookshelfEntry } from "../lib/bookshelfStorage";
 import type { KeywordSelectionPayload } from "../lib/keywordPayload";
 
@@ -18,6 +19,11 @@ export const CLASSROOM_DEMO_PHOTO_URL = "/demo/family-together.png";
 
 const createdAt = new Date("2026-06-09T09:30:00+08:00").getTime();
 type DemoCreationMode = "voice" | "keywords" | "sketch" | "family";
+const markdownSummaryByTitle = new Map(CULTURE_STORIES.map((story) => [story.title, story.summary]));
+
+function markdownStorySummary(title: string, fallback: string): string {
+  return markdownSummaryByTitle.get(title) || fallback;
+}
 
 export type ClassroomDemoFixture = {
   mode: DemoCreationMode;
@@ -120,8 +126,8 @@ function makeDemoTraces(
     orchestrate: {
       id: `demo-trace-${mode}-orchestrate`,
       kind: "decision",
-      title: "安全预处理完成",
-      detail: "输入素材可继续创作。",
+      title: "中枢 Agent 完成编排",
+      detail: "中枢 Agent 已完成素材安全预处理，并规划文化检索、故事撰写、分镜、Ranker、插画与朗读链路。",
     },
     draft: {
       id: `demo-trace-${mode}-draft`,
@@ -298,8 +304,10 @@ export const CLASSROOM_DEMO_CULTURE: CultureRagInfo = {
       source: "中国传统工匠故事",
       category: "工匠精神",
       score: 0.6167,
-      story_summary:
+      story_summary: markdownStorySummary(
+        "鲁班学艺",
         "鲁班年轻时拜师学艺，师傅让他修旧工具、砍大树、做模型，考验他的耐心和毅力。鲁班坚持练习，最终学到真本领，成为受人敬重的木匠。",
+      ),
       core_idea: "耐心观察、反复练习，把工具和方法用来帮助别人。",
       child_friendly_takeaway: "学本领不是一下子就会，先看清楚，再慢慢试，失败一次也可以继续调整。",
       visual_motifs: ["木尺", "木工坊", "旧工具", "小模型", "木纹"],
@@ -309,8 +317,10 @@ export const CLASSROOM_DEMO_CULTURE: CultureRagInfo = {
       source: "中国智慧故事",
       category: "观察与测量",
       score: 0.7958,
-      story_summary:
+      story_summary: markdownStorySummary(
+        "曹冲称象",
         "曹冲看到大象太重，不能直接称量，便想到让大象上船、记下水位，再用石头替换到同样水位，通过称石头知道大象重量。",
+      ),
       core_idea: "遇到大问题，可以拆成能观察、能比较、能验证的小步骤。",
       child_friendly_takeaway: "聪明办法常常来自认真观察和动手试验。",
       visual_motifs: ["小船", "石子", "水位线", "比较", "测量"],
@@ -320,8 +330,10 @@ export const CLASSROOM_DEMO_CULTURE: CultureRagInfo = {
       source: "中国民间故事",
       category: "分工合作",
       score: 0.7792,
-      story_summary:
+      story_summary: markdownStorySummary(
+        "三个和尚",
         "一个和尚挑水喝，两个和尚抬水喝，三个和尚却因为互相推让没水喝。后来他们明白，大家需要分工合作，事情才能做好。",
+      ),
       core_idea: "人多时更要分工清楚，互相帮忙。",
       child_friendly_takeaway: "一起做事时，每个人都出一点力，办法就会越来越稳。",
       visual_motifs: ["水桶", "山路", "分工", "合作", "小桥"],
@@ -547,30 +559,36 @@ const VOICE_DEMO_CULTURE: CultureRagInfo = {
       source: "中国神话故事",
       category: "月亮意象",
       score: 0.7832,
-      story_summary:
+      story_summary: markdownStorySummary(
+        "嫦娥奔月",
         "嫦娥奔月讲述人们仰望月亮、寄托思念与祝愿的神话。这里不复刻原故事，只借用月亮、夜空和温柔守望的文化意象。",
+      ),
       core_idea: "把思念和祝愿化作温柔的光。",
       child_friendly_takeaway: "夜晚的月亮可以提醒我们关心远处的朋友。",
       visual_motifs: ["月亮", "湖面", "夜空", "柔光"],
     },
     {
-      title: "孔明灯",
-      source: "传统民俗",
-      category: "灯火祈愿",
+      title: "招摇山识桂草迷谷",
+      source: "《山海经》故事",
+      category: "指路意象",
       score: 0.7461,
-      story_summary:
-        "孔明灯承载人们把愿望托给灯火的民俗记忆。样例只吸收灯火指路和温柔祝愿的意象，不让孩子模仿危险放灯行为。",
+      story_summary: markdownStorySummary(
+        "招摇山识桂草迷谷",
+        "招摇山上有迷谷树，传说佩戴迷谷木片就不会迷路。故事借用“找到方向、帮助回家”的意象。",
+      ),
       core_idea: "一盏小灯可以表达祝福，也可以照亮方向。",
       child_friendly_takeaway: "给朋友一点亮光，就是给朋友一点勇气。",
       visual_motifs: ["小灯", "纸船", "暖光", "夜色"],
     },
     {
-      title: "鲤鱼跃龙门",
+      title: "鲤鱼跳龙门",
       source: "中国民间故事",
       category: "坚持向上",
       score: 0.7124,
-      story_summary:
-        "鲤鱼跃龙门常被用来讲努力、坚持和成长。这里把鲤鱼改写成温柔伙伴，帮助纸船找到方向。",
+      story_summary: markdownStorySummary(
+        "鲤鱼跳龙门",
+        "鲤鱼跳龙门常被用来讲努力、坚持和成长。这里把鲤鱼改写成温柔伙伴，帮助纸船找到方向。",
+      ),
       core_idea: "小伙伴互相帮助，困难会变成练习的机会。",
       child_friendly_takeaway: "慢慢试、一起走，就能更接近目标。",
       visual_motifs: ["鲤鱼", "水波", "方向", "陪伴"],
@@ -687,12 +705,14 @@ const KEYWORD_DEMO_CULTURE: CultureRagInfo = {
   used: true,
   hits: [
     {
-      title: "二十四节气",
-      source: "中国传统历法",
+      title: "春雨细无声",
+      source: "唐诗《春夜喜雨》",
       category: "时令观察",
       score: 0.8015,
-      story_summary:
-        "二十四节气帮助人们观察天气、植物和农事变化。样例借用惊蛰、春雨和茶芽生长的时令感，不讲复杂历法。",
+      story_summary: markdownStorySummary(
+        "春雨细无声",
+        "春雨细无声写春雨悄悄滋润万物。样例借用春雨、嫩芽和耐心等待的时令感。",
+      ),
       core_idea: "顺着时令观察自然，知道什么时候该等待、什么时候该行动。",
       child_friendly_takeaway: "很多好东西需要慢慢长大。",
       visual_motifs: ["春雨", "嫩芽", "茶垄", "山泉"],
@@ -702,19 +722,23 @@ const KEYWORD_DEMO_CULTURE: CultureRagInfo = {
       source: "中国神话传说",
       category: "认识草木",
       score: 0.7312,
-      story_summary:
+      story_summary: markdownStorySummary(
+        "神农尝百草",
         "神农尝百草体现古人认识草木、谨慎辨别的探索精神。这里只提取观察草木和尊重自然的文化内核。",
+      ),
       core_idea: "认识自然要细心、耐心，也要懂得安全。",
       child_friendly_takeaway: "看到新植物时先观察，不随便入口。",
       visual_motifs: ["草木", "竹篮", "山野", "观察"],
     },
     {
-      title: "陆羽煮茶",
-      source: "茶文化故事",
+      title: "寻陆鸿渐不遇",
+      source: "唐诗《寻陆鸿渐不遇》",
       category: "茶文化",
       score: 0.7066,
-      story_summary:
+      story_summary: markdownStorySummary(
+        "寻陆鸿渐不遇",
         "陆羽与茶文化相关，代表认真观察水、叶、火候的传统审美。样例只保留茶香、节制采摘和分享的意象。",
+      ),
       core_idea: "认真对待小事，平凡的茶叶也能带来温暖。",
       child_friendly_takeaway: "把好东西分享给朋友，会让等待更有意义。",
       visual_motifs: ["茶叶", "茶香", "山泉", "分享"],
@@ -831,34 +855,40 @@ const SKETCH_DEMO_CULTURE: CultureRagInfo = {
   used: true,
   hits: [
     {
-      title: "西游记",
-      source: "中国古典小说",
+      title: "孙悟空大闹天宫",
+      source: "《西游记》故事",
       category: "经典人物",
       score: 0.8427,
-      story_summary:
+      story_summary: markdownStorySummary(
+        "孙悟空大闹天宫",
         "《西游记》里的孙悟空机智勇敢，也会在取经路上学习合作与担当。样例只借用孙悟空这一文化形象，不复刻取经情节。",
+      ),
       core_idea: "有本领也要会倾听、会帮助伙伴。",
       child_friendly_takeaway: "遇到问题时，聪明和耐心可以一起用。",
       visual_motifs: ["孙悟空", "云朵", "金色头箍", "山坡"],
     },
     {
-      title: "花果山",
-      source: "西游记意象",
+      title: "石猴出世",
+      source: "《西游记》故事",
       category: "自然乐园",
       score: 0.7823,
-      story_summary:
+      story_summary: markdownStorySummary(
+        "石猴出世",
         "花果山是孙悟空故事中的自然乐园意象，有山花、动物和自由生长的生命力。样例把它改写成温柔山坡。",
+      ),
       core_idea: "自然里的每个小伙伴都值得被照顾。",
       child_friendly_takeaway: "照顾花草和朋友，也是勇敢的一种。",
       visual_motifs: ["山花", "小动物", "草叶", "云"],
     },
     {
-      title: "伯牙鼓琴",
-      source: "中国知音故事",
+      title: "听弹琴的故事",
+      source: "唐诗《听弹琴》",
       category: "倾听与理解",
       score: 0.6955,
-      story_summary:
-        "伯牙鼓琴讲知音懂得倾听与理解。样例不复刻原故事，只吸收“先听见，再理解”的文化内核。",
+      story_summary: markdownStorySummary(
+        "听弹琴的故事",
+        "听弹琴的故事讲古琴声中的安静与理解。样例不复刻原诗，只吸收“先听见，再理解”的文化内核。",
+      ),
       core_idea: "真正的帮助从认真倾听开始。",
       child_friendly_takeaway: "朋友安静时，也许更需要我们慢慢听。",
       visual_motifs: ["声音", "风铃", "倾听", "山风"],
@@ -934,8 +964,8 @@ export const CLASSROOM_DEMO_TRACES: Record<string, AgentTraceEntry> = {
   orchestrate: {
     id: "demo-trace-orchestrate",
     kind: "decision",
-    title: "安全预处理完成",
-    detail: "输入素材可继续创作。",
+    title: "中枢 Agent 完成编排",
+    detail: "中枢 Agent 已完成素材安全预处理，并规划亲子素材理解、文化检索、故事撰写、分镜、Ranker、插画与朗读链路。",
   },
   draft: {
     id: "demo-trace-draft",
@@ -987,7 +1017,7 @@ export const CLASSROOM_DEMO_FIXTURES: Record<DemoCreationMode, ClassroomDemoFixt
     traces: makeDemoTraces(
       "voice",
       VOICE_DEMO_META.title,
-      "嫦娥奔月、孔明灯、鲤鱼跃龙门",
+      "嫦娥奔月、招摇山识桂草迷谷、鲤鱼跳龙门",
       "为 6 页写入角色一致性：小狐狸、小鲤鱼、白色纸船、萤火星光和月亮湖保持一致。",
     ),
   },
@@ -1002,7 +1032,7 @@ export const CLASSROOM_DEMO_FIXTURES: Record<DemoCreationMode, ClassroomDemoFixt
     traces: makeDemoTraces(
       "keywords",
       KEYWORD_DEMO_META.title,
-      "二十四节气、神农尝百草、陆羽煮茶",
+      "春雨细无声、神农尝百草、寻陆鸿渐不遇",
       "为 6 页写入角色一致性：小鹿、茶爷爷、竹篮、茶芽、山泉和春日茶园保持一致。",
     ),
   },
@@ -1017,7 +1047,7 @@ export const CLASSROOM_DEMO_FIXTURES: Record<DemoCreationMode, ClassroomDemoFixt
     traces: makeDemoTraces(
       "sketch",
       SKETCH_DEMO_META.title,
-      "西游记、花果山、伯牙鼓琴",
+      "孙悟空大闹天宫、石猴出世、听弹琴的故事",
       "为 6 页写入角色一致性：孙悟空、云朵、小兔子、小鹿、竹叶小铃和山坡花草保持一致。",
     ),
   },
@@ -1037,10 +1067,10 @@ export function getClassroomDemoFixture(mode: DemoCreationMode | string): Classr
   return CLASSROOM_DEMO_FIXTURES[(mode as DemoCreationMode) in CLASSROOM_DEMO_FIXTURES ? (mode as DemoCreationMode) : "voice"];
 }
 
-function createBookshelfEntryFromFixture(fixture: ClassroomDemoFixture): BookshelfEntry {
+function createBookshelfEntryFromFixture(fixture: ClassroomDemoFixture, generatedAt = createdAt): BookshelfEntry {
   return {
     id: `classroom-demo-${fixture.mode}`,
-    createdAt,
+    createdAt: generatedAt,
     title: fixture.meta.title,
     coverUrl: fixture.pages[0]?.imageUrl || "",
     pageCount: fixture.pages.length,
@@ -1050,6 +1080,10 @@ function createBookshelfEntryFromFixture(fixture: ClassroomDemoFixture): Bookshe
     bookMeta: fixture.meta,
     pages: fixture.pages.map((page) => ({ ...page })),
   };
+}
+
+export function createClassroomDemoBookshelfEntry(mode: DemoCreationMode | string, generatedAt = createdAt): BookshelfEntry {
+  return createBookshelfEntryFromFixture(getClassroomDemoFixture(mode), generatedAt);
 }
 
 export function createClassroomDemoBookshelfEntries(): BookshelfEntry[] {

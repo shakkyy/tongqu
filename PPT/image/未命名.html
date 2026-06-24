@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>童趣绘梦 - 面向儿童的中国风 AI 绘本共创平台</title>
+    <style>
+        /* 全局样式与中国风配色 */
+        :root {
+            --bg-paper: #f7f1e5; /* 宣纸底色 */
+            --primary-red: #9e2a2b; /* 朱砂红 */
+            --ink-black: #2b2d42; /* 浓墨色 */
+            --gold: #d4af37; /* 祥云金 */
+            --text-muted: #6c757d;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "PingFang SC", "Lantinghei SC", "Microsoft YaHei", serif;
+        }
+
+        body {
+            background-color: var(--bg-paper);
+            /* 模拟宣纸微观纹理与渐变水墨感 */
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(220, 100, 80, 0.08) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(158, 42, 43, 0.05) 0%, transparent 50%);
+            color: var(--ink-black);
+            overflow-x: hidden;
+            line-height: 1.6;
+        }
+
+        /* 顶部装饰线与云纹 */
+        .top-deco {
+            width: 100%;
+            height: 6px;
+            background: linear-gradient(90deg, var(--gold), var(--primary-red), var(--gold));
+        }
+
+        /* 容器 */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Hero 头部区域 */
+        .hero {
+            text-align: center;
+            padding: 5rem 1rem 4rem 1rem;
+            position: relative;
+        }
+
+        .hero::before {
+            content: "绘本共创";
+            position: absolute;
+            top: 2rem;
+            right: 10%;
+            writing-mode: vertical-rl;
+            color: rgba(158, 42, 43, 0.06);
+            font-size: 5rem;
+            font-weight: bold;
+            font-family: serif;
+        }
+
+        .main-title {
+            font-size: 4.5rem;
+            font-weight: 800;
+            color: var(--primary-red);
+            margin-bottom: 0.5rem;
+            letter-spacing: 0.5rem;
+            position: relative;
+            display: inline-block;
+            font-family: "Noto Serif SC", serif;
+        }
+
+        /* 经典中式祥云小图标装饰 */
+        .cloud-deco {
+            display: block;
+            width: 50px;
+            height: 20px;
+            margin: 0.5rem auto 1.5rem auto;
+            opacity: 0.7;
+        }
+
+        .subtitle {
+            font-size: 1.5rem;
+            color: var(--ink-black);
+            letter-spacing: 0.2rem;
+            margin-bottom: 3rem;
+            font-weight: 400;
+        }
+
+        /* 按钮组 */
+        .cta-group {
+            display: flex;
+            justify-content: center;
+            gap: 1.5rem;
+            margin-bottom: 5rem;
+        }
+
+        .btn {
+            padding: 0.8rem 2.5rem;
+            font-size: 1.1rem;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            font-weight: 500;
+            letter-spacing: 0.1rem;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-red);
+            color: #fff;
+            border: 2px solid var(--primary-red);
+            box-shadow: 0 4px 15px rgba(158, 42, 43, 0.2);
+        }
+
+        .btn-primary:hover {
+            background-color: #802021;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(158, 42, 43, 0.3);
+        }
+
+        .btn-secondary {
+            background-color: transparent;
+            color: var(--primary-red);
+            border: 2px solid var(--primary-red);
+        }
+
+        .btn-secondary:hover {
+            background-color: rgba(158, 42, 43, 0.05);
+            transform: translateY(-2px);
+        }
+
+        /* 数据看板卡片 (画卷/中式包边质感) */
+        .stats-panel {
+            background: rgba(255, 255, 255, 0.6);
+            border-top: 3px solid var(--primary-red);
+            border-bottom: 3px solid var(--primary-red);
+            border-radius: 4px;
+            padding: 2.5rem 2rem;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            text-align: center;
+            margin-bottom: 5rem;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.03);
+            backdrop-filter: blur(5px);
+            position: relative;
+        }
+
+        /* 模拟画卷两侧的轴心装饰感 */
+        .stats-panel::before, .stats-panel::after {
+            content: "";
+            position: absolute;
+            top: -6px;
+            width: 4px;
+            height: calc(100% + 12px);
+            background: var(--gold);
+        }
+        .stats-panel::before { left: 0; }
+        .stats-panel::after { right: 0; }
+
+        .stat-item {
+            position: relative;
+        }
+
+        .stat-item:not(:last-child)::after {
+            content: "";
+            position: absolute;
+            right: 0;
+            top: 20%;
+            height: 60%;
+            width: 1px;
+            background: linear-gradient(to bottom, transparent, rgba(0,0,0,0.1), transparent);
+        }
+
+        .stat-label {
+            font-size: 1rem;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+            letter-spacing: 0.1rem;
+        }
+
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--primary-red);
+            font-family: "Georgia", serif;
+        }
+
+        /* 核心功能网格 */
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 2rem;
+            margin-bottom: 4rem;
+        }
+
+        .feature-card {
+            background: rgba(255, 255, 255, 0.7);
+            border: 1px solid rgba(158, 42, 43, 0.1);
+            border-radius: 12px;
+            padding: 2.5rem;
+            transition: all 0.4s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+            background: #fff;
+            box-shadow: 0 15px 35px rgba(158, 42, 43, 0.08);
+            border-color: var(--primary-red);
+        }
+
+        /* 卡片左上角精美中式小角标 */
+        .feature-card::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 0;
+            height: 0;
+            border-top: 16px solid var(--primary-red);
+            border-right: 16px solid transparent;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .feature-card:hover::before {
+            opacity: 1;
+        }
+
+        .feature-title {
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: var(--ink-black);
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+        }
+
+        /* 替代传统小图标的中式印章点缀 */
+        .feature-title::before {
+            content: "•";
+            color: var(--primary-red);
+            font-size: 1.8rem;
+        }
+
+        .feature-desc {
+            font-size: 1rem;
+            color: #555;
+            html-line-height: 1.7;
+        }
+
+        /* 页脚 */
+        footer {
+            text-align: center;
+            padding: 3rem 0;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            border-top: 1px solid rgba(0, 0, 0, 0.05);
+            letter-spacing: 0.05rem;
+        }
+
+        /* 响应式适配 */
+        @media (max-width: 768px) {
+            .main-title { font-size: 3rem; }
+            .subtitle { font-size: 1.1rem; }
+            .stats-panel { grid-template-columns: 1fr; gap: 1.5rem; }
+            .stats-item:not(:last-child)::after { display: none; }
+            .features-grid { grid-template-columns: 1fr; }
+            .cta-group { flex-direction: column; align-items: center; gap: 1rem; }
+            .btn { width: 100%; text-align: center; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="top-deco"></div>
+
+    <div class="container">
+        
+        <header class="hero">
+            <h1 class="main-title">童趣绘梦</h1>
+            <svg class="cloud-deco" viewBox="0 0 100 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M20 25 C20 15, 35 15, 40 20 C45 10, 65 10, 70 20 C80 15, 95 25, 80 32 C65 35, 35 35, 20 25 Z" stroke="#9e2a2b" stroke-width="2" fill="none"/>
+                <path d="M35 25 C40 22, 50 22, 55 25" stroke="#d4af37" stroke-width="1.5" fill="none"/>
+            </svg>
+            <p class="subtitle">面向儿童的中国风 AI 绘本共创平台</p>
+            
+            <div class="cta-group">
+                <a href="#" class="btn btn-primary">开始创作</a>
+                <a href="#" class="btn btn-secondary">查看故事库</a>
+            </div>
+        </header>
+
+        <section class="stats-panel">
+            <div class="stat-item">
+                <div class="stat-label">入库故事</div>
+                <div class="stat-value">738 条</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">文脉分支</div>
+                <div class="stat-value">9 类</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">库内文字</div>
+                <div class="stat-value">455 千字</div>
+            </div>
+        </section>
+
+        <main class="features-grid">
+            <div class="feature-card">
+                <h3 class="feature-title">绘本创作</h3>
+                <p class="feature-desc">语音、选词、草图和亲子素材都可以成为故事开头。释放孩子的想象力，让灵感在宣纸上跃然动人。</p>
+            </div>
+            
+            <div class="feature-card">
+                <h3 class="feature-title">文脉故事库</h3>
+                <p class="feature-desc">以图谱形式趣味查看传统故事、诗词、神话与典故。让华夏千年的文脉，成为孩子天马行空创作的基石。</p>
+            </div>
+            
+            <div class="feature-card">
+                <h3 class="feature-title">我的书架</h3>
+                <p class="feature-desc">安全保存、高清预览和一键导出孩子已经完成的数字化绘本。记录童年奇思妙想的成长轨迹。</p>
+            </div>
+            
+            <div class="feature-card">
+                <h3 class="feature-title">家庭角色库</h3>
+                <p class="feature-desc">专属为家人打造、保存可复用的中式动漫化角色形象和设定。让爸爸、妈妈和孩子自己都成为绘本里的主人公。</p>
+            </div>
+        </main>
+
+        <footer>
+            <p>© 2026 童趣绘梦 - 面向儿童的中国风 AI 绘本共创平台. 传续文脉，绘就童心.</p>
+        </footer>
+
+    </div>
+
+</body>
+</html>

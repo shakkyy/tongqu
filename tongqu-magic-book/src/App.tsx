@@ -7,6 +7,8 @@ import { SketchPad, type SketchPadHandle } from "./components/SketchPad";
 import { StoryBookPanel } from "./components/StoryBookPanel";
 import { BookshelfPage } from "./components/BookshelfPage";
 import { FamilyProfilePage } from "./components/FamilyProfilePage";
+import { StoryDatabasePage } from "./components/StoryDatabasePage";
+import { HomePage } from "./components/HomePage";
 import {
   addBookshelfEntry,
   loadBookshelf,
@@ -29,7 +31,7 @@ import {
   CLASSROOM_DEMO_QUERY_ENABLED,
   CLASSROOM_DEMO_SKETCH_DESCRIPTION,
   CLASSROOM_DEMO_VOICE_TEXT,
-  createClassroomDemoBookshelfEntries,
+  createClassroomDemoBookshelfEntry,
   getClassroomDemoFixture,
 } from "./demo/classroomDemo";
 import type {
@@ -334,12 +336,10 @@ export default function App() {
   const sketchPadRef = useRef<SketchPadHandle>(null);
   const generationAbortRef = useRef<AbortController | null>(null);
   const stopNoticeShownRef = useRef(false);
-  const [appView, setAppView] = useState<"create" | "bookshelf" | "familyProfiles">("create");
+  const [appView, setAppView] = useState<"home" | "create" | "bookshelf" | "storyDatabase" | "familyProfiles">("home");
   const [bookshelfItems, setBookshelfItems] = useState<BookshelfEntry[]>([]);
   const [demoActive, setDemoActive] = useState(CLASSROOM_DEMO_QUERY_ENABLED);
-  const [demoBookshelfItems, setDemoBookshelfItems] = useState<BookshelfEntry[]>(() =>
-    createClassroomDemoBookshelfEntries(),
-  );
+  const [demoBookshelfItems, setDemoBookshelfItems] = useState<BookshelfEntry[]>([]);
   const [bookshelfNotice, setBookshelfNotice] = useState<string | null>(null);
   const [pendingDemoSketchDraw, setPendingDemoSketchDraw] = useState(false);
   const demoActivatedRef = useRef(false);
@@ -359,7 +359,6 @@ export default function App() {
 
   const activateClassroomDemo = useCallback(() => {
     setDemoActive(true);
-    setAppView("create");
     setCreationMode("voice");
     setStyle("ink-wash");
     setRemotePages(null);
@@ -387,8 +386,7 @@ export default function App() {
     setVoiceEditDirty(true);
     setKeywordPayload(CLASSROOM_DEMO_KEYWORD_PAYLOAD);
     setFamilyProfiles(CLASSROOM_DEMO_FAMILY_PROFILES.map((member) => ({ ...member })));
-    setDemoBookshelfItems(createClassroomDemoBookshelfEntries());
-    setBookshelfNotice("创作素材已准备好");
+    setDemoBookshelfItems([]);
   }, []);
 
   useEffect(() => {
@@ -1009,6 +1007,17 @@ export default function App() {
       tts: "为每页旁白生成温和朗读",
       review: "进行儿童安全复核与价值观对齐",
     };
+    const appendDemoTrace = (stageId: string, traceIndex: number) => {
+      const trace = fixture.traces[stageId];
+      if (!trace) return;
+      setAgentTrace((prev) => [
+        ...prev.slice(-24),
+        {
+          ...trace,
+          id: `${trace.id}-${traceIndex}`,
+        },
+      ]);
+    };
     try {
       for (let i = 0; i < generationStages.length; i += 1) {
         const stage = generationStages[i];
@@ -1017,17 +1026,16 @@ export default function App() {
           ...prev,
           [stage.id]: demoStageDetails[stage.id] || stage.detail,
         }));
-        const trace = fixture.traces[stage.id];
-        if (trace) {
-          setAgentTrace((prev) => [
-            ...prev.slice(-24),
-            {
-              ...trace,
-              id: `${trace.id}-${i}`,
-            },
-          ]);
+        const completedStage = i > 0 ? generationStages[i - 1] : null;
+        if (completedStage) {
+          appendDemoTrace(completedStage.id, i - 1);
         }
-        await wait(3000, signal);
+        await wait(i === generationStages.length - 1 ? 2400 : 3000, signal);
+      }
+      const finalStage = generationStages[generationStages.length - 1];
+      if (finalStage) {
+        appendDemoTrace(finalStage.id, generationStages.length - 1);
+        await wait(600, signal);
       }
       const pages = fixture.pages.map((page) => ({ ...page }));
       const meta: BookMeta = {
@@ -1054,7 +1062,11 @@ export default function App() {
       });
       setLastBookSource(fixture.mode);
       setActiveIndex(0);
-      setDemoBookshelfItems(createClassroomDemoBookshelfEntries());
+      const generatedEntry = createClassroomDemoBookshelfEntry(fixture.mode, Date.now());
+      setDemoBookshelfItems((prev) => [
+        generatedEntry,
+        ...prev.filter((entry) => entry.id !== generatedEntry.id),
+      ]);
     } finally {
       setIsGenerating(false);
       if (generationAbortRef.current?.signal === signal) {
@@ -1511,6 +1523,17 @@ ${familyParentGoal.trim() || "家长期待故事温暖、有合作感，读完�
         <div className="flex items-center gap-2">
           <button
             type="button"
+            onClick={() => setAppView("home")}
+            className={`text-xs font-bold border-2 border-theme-text rounded-full px-3 py-1 transition-colors ${
+              appView === "home"
+                ? "bg-theme-text text-white"
+                : "bg-theme-bg hover:bg-theme-secondary hover:text-white"
+            }`}
+          >
+            首页
+          </button>
+          <button
+            type="button"
             onClick={() => setAppView("create")}
             className={`text-xs font-bold border-2 border-theme-text rounded-full px-3 py-1 transition-colors ${
               appView === "create"
@@ -1536,6 +1559,17 @@ ${familyParentGoal.trim() || "家长期待故事温暖、有合作感，读完�
           </button>
           <button
             type="button"
+            onClick={() => setAppView("storyDatabase")}
+            className={`text-xs font-bold border-2 border-theme-text rounded-full px-3 py-1 transition-colors ${
+              appView === "storyDatabase"
+                ? "bg-theme-text text-white"
+                : "bg-theme-bg hover:bg-theme-secondary hover:text-white"
+            }`}
+          >
+            故事库
+          </button>
+          <button
+            type="button"
             onClick={() => setAppView("familyProfiles")}
             className={`text-xs font-bold border-2 border-theme-text rounded-full px-3 py-1 transition-colors ${
               appView === "familyProfiles"
@@ -1545,8 +1579,8 @@ ${familyParentGoal.trim() || "家长期待故事温暖、有合作感，读完�
           >
             角色库
           </button>
-          <div className="w-8 h-8 rounded-full border-2 border-theme-text bg-theme-success overflow-hidden">
-            <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=kid&backgroundColor=2AAD6E`} alt="avatar" />
+          <div className="w-8 h-8 rounded-full border-2 border-theme-text bg-cn-paper overflow-hidden">
+            <img src="/avatars/tongqu-user-avatar.png" alt="头像" className="h-full w-full object-cover" />
           </div>
         </div>
       </header>
@@ -1685,14 +1719,24 @@ ${familyParentGoal.trim() || "家长期待故事温暖、有合作感，读完�
       {/* Main Content Area - No vertical scroll */}
       <main
         className={
-          appView === "bookshelf"
+          appView === "home" || appView === "bookshelf" || appView === "storyDatabase"
             ? "flex-1 min-h-0 w-full overflow-hidden"
             : appView === "familyProfiles"
               ? "flex-1 min-h-0 w-full overflow-hidden"
             : "flex-1 flex flex-col lg:flex-row w-full px-4 lg:px-6 py-3 gap-6 lg:gap-8 overflow-hidden min-h-0"
         }
       >
-        {appView === "bookshelf" ? (
+        {appView === "home" ? (
+          <HomePage
+            onStartCreate={() => setAppView("create")}
+            onOpenStoryDatabase={() => setAppView("storyDatabase")}
+            onOpenBookshelf={() => {
+              void refreshBookshelf();
+              setAppView("bookshelf");
+            }}
+            onOpenFamilyProfiles={() => setAppView("familyProfiles")}
+          />
+        ) : appView === "bookshelf" ? (
           <BookshelfPage
             items={displayedBookshelfItems}
             onOpenBook={openBookFromShelf}
@@ -1712,6 +1756,8 @@ ${familyParentGoal.trim() || "家长期待故事温暖、有合作感，读完�
               }
             }}
           />
+        ) : appView === "storyDatabase" ? (
+          <StoryDatabasePage onBackToCreate={() => setAppView("create")} />
         ) : appView === "familyProfiles" ? (
           <FamilyProfilePage
             profiles={familyProfiles}

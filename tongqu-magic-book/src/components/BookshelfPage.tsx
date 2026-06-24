@@ -98,13 +98,16 @@ export function BookshelfPage({
   const selectedFamilyPhoto = selected?.familyPhotoThumb || selectedFamily?.familyPhotoThumb;
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden font-classical">
-      <div className="flex flex-shrink-0 flex-col gap-3 border-b-2 border-cn-ink/15 bg-white/85 px-4 py-4 lg:px-6">
+    <div className="h-full min-h-0 w-full overflow-y-auto bg-[#F7F0DF] font-classical text-cn-ink hide-scrollbar">
+      <div className="mx-auto w-full max-w-[1480px]">
+        <div className="flex flex-shrink-0 flex-col gap-3 px-4 py-4 lg:px-6">
+          <section className="relative overflow-hidden rounded-2xl border-2 border-cn-ink bg-[#FFFDF6] px-5 py-5 shadow-[4px_4px_0px_rgba(26,43,60,0.18)]">
+            <div className="absolute left-0 top-0 h-full w-1.5 bg-cn-red" />
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <div className="flex items-center gap-2">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl border-2 border-cn-ink bg-cn-red text-white shadow-[2px_2px_0px_#1A2B3C]">
-                <BookOpen className="h-5 w-5" />
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl border-2 border-cn-ink bg-cn-red text-white shadow-[2px_2px_0px_#1A2B3C]">
+                <BookOpen className="h-6 w-6" />
               </div>
               <div>
                 <h2 className="text-2xl font-black leading-tight text-cn-ink">成长纪念书架</h2>
@@ -137,28 +140,40 @@ export function BookshelfPage({
           </div>
         </div>
 
-        <div className="grid gap-2 md:grid-cols-4">
-          <div className="rounded-lg border-2 border-cn-ink/15 bg-white px-3 py-2">
-            <p className="text-[10px] font-black text-cn-ink/45">绘本总数</p>
+        <div className="mt-4 grid gap-2 md:grid-cols-4">
+          <div className="rounded-xl border-2 border-cn-ink/15 bg-white px-3 py-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[10px] font-black text-cn-ink/45">绘本总数</p>
+              <BookOpen className="h-4 w-4 text-cn-red" />
+            </div>
             <p className="mt-1 text-xl font-black leading-none text-cn-ink">{items.length}</p>
           </div>
-          <div className="rounded-lg border-2 border-cn-ink/15 bg-white px-3 py-2">
-            <p className="text-[10px] font-black text-cn-ink/45">累计页数</p>
+          <div className="rounded-xl border-2 border-cn-ink/15 bg-white px-3 py-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[10px] font-black text-cn-ink/45">累计页数</p>
+              <Layers3 className="h-4 w-4 text-cn-red" />
+            </div>
             <p className="mt-1 text-xl font-black leading-none text-cn-ink">{totalPages}</p>
           </div>
-          <div className="rounded-lg border-2 border-cn-ink/15 bg-white px-3 py-2">
-            <p className="text-[10px] font-black text-cn-ink/45">亲子共创</p>
+          <div className="rounded-xl border-2 border-cn-ink/15 bg-white px-3 py-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[10px] font-black text-cn-ink/45">亲子共创</p>
+              <UsersRound className="h-4 w-4 text-cn-red" />
+            </div>
             <p className="mt-1 text-xl font-black leading-none text-cn-ink">{countByMode(items, "family")}</p>
           </div>
-          <div className="rounded-lg border-2 border-cn-ink/15 bg-white px-3 py-2">
-            <p className="text-[10px] font-black text-cn-ink/45">最近生成</p>
+          <div className="rounded-xl border-2 border-cn-ink/15 bg-white px-3 py-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[10px] font-black text-cn-ink/45">最近生成</p>
+              <Clock3 className="h-4 w-4 text-cn-red" />
+            </div>
             <p className="mt-1 truncate text-sm font-black leading-tight text-cn-ink">
               {latest ? latest.title : "暂无"}
             </p>
           </div>
         </div>
 
-        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+        <div className="mt-3 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
           <label className="flex min-w-0 flex-1 items-center gap-2 rounded-full border-2 border-cn-ink bg-white px-3 py-2">
             <Search className="h-4 w-4 flex-shrink-0 text-cn-ink/45" />
             <input
@@ -189,10 +204,11 @@ export function BookshelfPage({
             })}
           </div>
         </div>
-      </div>
+          </section>
+        </div>
 
-      <div className="grid min-h-0 flex-1 gap-4 overflow-hidden px-4 py-4 lg:grid-cols-[minmax(420px,1fr)_360px] lg:px-6">
-        <div className="min-h-0 overflow-y-auto pr-1 hide-scrollbar">
+        <div className="grid gap-4 px-4 py-4 lg:grid-cols-[minmax(420px,1fr)_360px] lg:items-start lg:px-6">
+        <div className="pr-1">
           {filtered.length === 0 ? (
             <div className="flex h-full min-h-[360px] flex-col items-center justify-center rounded-xl border-2 border-dashed border-cn-ink/25 bg-white/70 text-center">
               <BookOpen className="h-10 w-10 text-cn-ink/30" />
@@ -268,7 +284,7 @@ export function BookshelfPage({
           )}
         </div>
 
-        <aside className="hidden min-h-0 overflow-hidden rounded-xl border-2 border-cn-ink bg-white shadow-[3px_3px_0px_rgba(26,43,60,0.16)] lg:flex lg:flex-col">
+        <aside className="hidden rounded-xl border-2 border-cn-ink bg-white shadow-[3px_3px_0px_rgba(26,43,60,0.16)] lg:block">
           {selected ? (
             <>
               <div className="relative aspect-[16/10] flex-shrink-0 overflow-hidden bg-cn-paper">
@@ -283,7 +299,7 @@ export function BookshelfPage({
                   className="h-full w-full object-cover"
                 />
               </div>
-              <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4 hide-scrollbar">
+              <div className="flex flex-col p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <h3 className="line-clamp-2 text-lg font-black leading-tight text-cn-ink">{selected.title}</h3>
@@ -361,7 +377,7 @@ export function BookshelfPage({
                 <div className="mt-4">
                   <p className="mb-2 text-[11px] font-black text-cn-ink/55">页面预览</p>
                   <div className="grid grid-cols-4 gap-1.5">
-                    {selected.pages.slice(0, 4).map((page, idx) => (
+                    {selected.pages.map((page, idx) => (
                       <img
                         key={page.id || idx}
                         src={page.imageUrl || FALLBACK_COVER}
@@ -373,12 +389,12 @@ export function BookshelfPage({
                 </div>
 
                 <div className="mt-4 rounded-lg border border-cn-ink/10 bg-cn-paper/35 p-3">
-                  <p className="line-clamp-4 text-[12px] font-semibold leading-relaxed text-cn-ink/70">
+                  <p className="text-[12px] font-semibold leading-relaxed text-cn-ink/70">
                     {selected.pages[0]?.text || "暂无旁白"}
                   </p>
                 </div>
 
-                <div className="mt-auto flex gap-2 pt-4">
+                <div className="mt-4 flex gap-2">
                   <button
                     type="button"
                     onClick={() => onOpenBook(selected)}
@@ -404,6 +420,7 @@ export function BookshelfPage({
             </div>
           )}
         </aside>
+      </div>
       </div>
     </div>
   );
