@@ -1,0 +1,15 @@
+.DS_Store
+.env
+*.log
+*.pyc
+__pycache__/
+.pytest_cache/
+.venv/
+venv/
+node_modules/
+dist/
+*.tsbuildinfo
+.dev-logs/
+out/
+tongqu-agent-backend/models/
+tongqu-agent-backend/training/artifacts/

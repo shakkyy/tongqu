@@ -1,0 +1,143 @@
+from __future__ import annotations
+
+import os
+from dataclasses import dataclass
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).resolve().parent / ".env")
+
+
+@dataclass(frozen=True)
+class AppConfig:
+    # ========== 绘本配图（文生图）==========
+
+    OPENAI_API_KEY: str | None = os.getenv("OPENAI_API_KEY")
+    OPENAI_BASE_URL: str | None = (
+        (os.getenv("OPENAI_BASE_URL") or "").strip().rstrip("/")
+        or None
+    )
+    OPENAI_MODEL: str | None = (os.getenv("OPENAI_MODEL") or "").strip() or None
+    OPENAI_TIMEOUT_SECONDS: float = float(os.getenv("OPENAI_TIMEOUT_SECONDS", "100"))
+    OPENAI_MAX_RETRIES: int = max(0, int(os.getenv("OPENAI_MAX_RETRIES", "0")))
+
+    GOOGLE_API_KEY: str | None = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
+    GEMINI_OPENAI_API_KEY: str | None = os.getenv("GEMINI_OPENAI_API_KEY")
+    GEMINI_OPENAI_BASE_URL: str | None = os.getenv("GEMINI_OPENAI_BASE_URL")
+    GEMINI_IMAGE_MODEL: str = os.getenv(
+        "GEMINI_IMAGE_MODEL",
+        "gemini-2.0-flash-preview-image-generation",
+    )
+    GEMINI_IMAGE_ASPECT_RATIO: str = (
+        (os.getenv("GEMINI_IMAGE_ASPECT_RATIO") or "16:9").strip()
+    )
+    GEMINI_IMAGE_SIZE: str | None = (
+        (os.getenv("GEMINI_IMAGE_SIZE") or "1K").strip()
+        or None
+    )
+    IMAGE_GENERATION_CONCURRENCY: int = max(
+        1,
+        int(os.getenv("IMAGE_GENERATION_CONCURRENCY", "5")),
+    )
+    RUN_ARTIFACTS_ENABLED: bool = (
+        (os.getenv("RUN_ARTIFACTS_ENABLED", "1").strip().lower())
+        not in {"0", "false", "no"}
+    )
+    RUN_ARTIFACT_DIR: str = os.getenv(
+        "RUN_ARTIFACT_DIR",
+        str(Path(__file__).resolve().parents[1] / "out" / "runs"),
+    )
+
+    # ========== 本地内容安全模型 ==========
+    CONTENT_SAFETY_GUARD_ENABLED: bool = (
+        (os.getenv("CONTENT_SAFETY_GUARD_ENABLED", "1").strip().lower())
+        not in {"0", "false", "no"}
+    )
+    CONTENT_SAFETY_GUARD_MODEL_PATH: str = os.getenv(
+        "CONTENT_SAFETY_GUARD_MODEL_PATH",
+        str(Path(__file__).resolve().parent / "models" / "Qwen3Guard-Gen-0.6B"),
+    )
+    CONTENT_SAFETY_GUARD_DEVICE: str = os.getenv("CONTENT_SAFETY_GUARD_DEVICE", "cpu")
+    CONTENT_SAFETY_GUARD_MAX_INPUT_TOKENS: int = int(
+        os.getenv("CONTENT_SAFETY_GUARD_MAX_INPUT_TOKENS", "4096")
+    )
+    CONTENT_SAFETY_GUARD_MAX_NEW_TOKENS: int = int(
+        os.getenv("CONTENT_SAFETY_GUARD_MAX_NEW_TOKENS", "128")
+    )
+
+    # ========== 阿里云百炼：故事文本 + 草图理解（千问 VL）==========
+    DASHSCOPE_API_KEY: str | None = os.getenv("DASHSCOPE_API_KEY")
+    # 文本/ASR 统一走 OpenAI 兼容网关（北京默认）
+    DASHSCOPE_COMPAT_BASE_URL: str = (
+        (os.getenv("DASHSCOPE_COMPAT_BASE_URL") or "").strip().rstrip("/")
+        or "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    )
+    # VL 走原生 DashScope 网关（北京默认）
+    DASHSCOPE_VL_BASE_HTTP_API_URL: str = (
+        (os.getenv("DASHSCOPE_VL_BASE_HTTP_API_URL") or "").strip().rstrip("/")
+        or "https://dashscope.aliyuncs.com/api/v1"
+    )
+    QWEN_MODEL: str = os.getenv("QWEN_MODEL", "qwen3.6-plus")
+    QWEN_VL_MODEL: str = os.getenv("QWEN_VL_MODEL", "qwen3-vl-plus")
+    QWEN_ASR_MODEL: str = os.getenv("QWEN_ASR_MODEL", "qwen3-asr-flash")
+    DASHSCOPE_TTS_MODEL: str = os.getenv("DASHSCOPE_TTS_MODEL", "cosyvoice-v3-flash")
+    DASHSCOPE_TTS_VOICE: str = os.getenv("DASHSCOPE_TTS_VOICE", "longanyang")
+    DASHSCOPE_TTS_FORMAT: str = os.getenv("DASHSCOPE_TTS_FORMAT", "mp3")
+    DASHSCOPE_TTS_SAMPLE_RATE: int = int(os.getenv("DASHSCOPE_TTS_SAMPLE_RATE", "24000"))
+    TTS_SYNTHESIS_CONCURRENCY: int = max(
+        1,
+        int(os.getenv("TTS_SYNTHESIS_CONCURRENCY", "5")),
+    )
+    DASHSCOPE_TTS_URL: str = (
+        (os.getenv("DASHSCOPE_TTS_URL") or "").strip()
+        or "https://dashscope.aliyuncs.com/api/v1/services/audio/tts/SpeechSynthesizer"
+    )
+
+    # ========== 中文风格关键词增强 ==========
+    STYLE_KEYWORD_ENHANCER_ENABLED: bool = (
+        (os.getenv("STYLE_KEYWORD_ENHANCER_ENABLED", "0").strip().lower())
+        not in {"0", "false", "no"}
+    )
+    STYLE_KEYWORD_TOP_K: int = int(os.getenv("STYLE_KEYWORD_TOP_K", "4"))
+    STYLE_KEYWORD_BASE_MODEL: str = os.getenv(
+        "STYLE_KEYWORD_BASE_MODEL",
+        "BAAI/bge-small-zh-v1.5",
+    )
+    STYLE_KEYWORD_BANK_PATH: str = os.getenv(
+        "STYLE_KEYWORD_BANK_PATH",
+        str(Path(__file__).resolve().parent / "data" / "style_keywords.json"),
+    )
+    STYLE_KEYWORD_MODEL_DIR: str = os.getenv(
+        "STYLE_KEYWORD_MODEL_DIR",
+        str(Path(__file__).resolve().parent / "training" / "artifacts" / "style_keyword_ranker"),
+    )
+
+    # ========== 中国传统文化 RAG 语料库 ==========
+    CULTURE_RAG_CORPUS_PATH: str = os.getenv(
+        "CULTURE_RAG_CORPUS_PATH",
+        str(Path(__file__).resolve().parents[1] / "chinese-stories-database"),
+    )
+    CULTURE_RAG_TOP_K: int = int(os.getenv("CULTURE_RAG_TOP_K", "3"))
+    CULTURE_RAG_MIN_SCORE: float = float(os.getenv("CULTURE_RAG_MIN_SCORE", "0.18"))
+    CULTURE_RAG_EMBEDDING_ENABLED: bool = (
+        (os.getenv("CULTURE_RAG_EMBEDDING_ENABLED", "1").strip().lower())
+        not in {"0", "false", "no"}
+    )
+    CULTURE_RAG_EMBEDDING_MODEL: str = os.getenv(
+        "CULTURE_RAG_EMBEDDING_MODEL",
+        "BAAI/bge-large-zh-v1.5",
+    )
+    CULTURE_RAG_EMBEDDING_LOCAL_ONLY: bool = (
+        (os.getenv("CULTURE_RAG_EMBEDDING_LOCAL_ONLY", "1").strip().lower())
+        not in {"0", "false", "no"}
+    )
+    CULTURE_RAG_KEYWORD_WEIGHT: float = float(os.getenv("CULTURE_RAG_KEYWORD_WEIGHT", "0.35"))
+    CULTURE_RAG_EMBEDDING_WEIGHT: float = float(os.getenv("CULTURE_RAG_EMBEDDING_WEIGHT", "0.65"))
+    CULTURE_RAG_MAX_RETURN: int = int(os.getenv("CULTURE_RAG_MAX_RETURN", "2"))
+    CULTURE_RAG_RELATIVE_SCORE_DROP: float = float(
+        os.getenv("CULTURE_RAG_RELATIVE_SCORE_DROP", "0.22")
+    )
+
+
+CONFIG = AppConfig()

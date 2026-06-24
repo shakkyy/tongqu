@@ -1,0 +1,314 @@
+"""
+童趣绘梦 HTTP API（FastAPI）
+
+路由层仅负责协议转换；业务由 agent.TongquAgent 与各 services 模块完成。
+"""
+
+from __future__ import annotations
+
+import asyncio
+import contextlib
+import json
+from typing import Any, Literal
+
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
+
+from agent.tongqu_agent import build_default_tongqu_agent
+from config import CONFIG
+from services.run_artifacts import RunArtifactRecorder
+
+app = FastAPI(title="童趣绘梦 API", version="0.1.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+class StorybookCreateRequest(BaseModel):
+    keywords: str = Field(..., min_length=1, description="故事素材：语音转写、选词拼接或草图引导语")
+    style: str = Field(
+        default="ink-wash",
+        description="paper-cut | ink-wash | shadow-puppet | comic",
+    )
+    sketch_image_base64: str | None = Field(
+        default=None,
+        description="草图 data URL；将经 Qwen-VL Plus 理解后并入素材，再交 Qwen Plus 写故事、Gemini 配图",
+    )
+    sketch_text: str | None = Field(
+        default=None,
+        description="孩子对自己画的补充说明，与 VL 结果一并作为素材",
+    )
+    creation_source: Literal["voice", "keywords", "sketch", "family"] | None = Field(
+        default=None,
+        description="创作来源，用于追踪：voice | keywords | sketch | family",
+    )
+    enable_style_keyword_enhancer: bool | None = Field(
+        default=None,
+        description="是否启用按页生图风格关键词增强；不传时使用后端环境变量 STYLE_KEYWORD_ENHANCER_ENABLED",
+    )
+
+
+class StorybookRewritePageScene(BaseModel):
+    scene_no: int | None = Field(default=None, ge=1)
+    text: str = Field(..., min_length=1)
+    image_prompt: str | None = None
+
+
+class StorybookRewritePageRequest(BaseModel):
+    title: str = Field(..., min_length=1)
+    style: str = Field(
+        default="ink-wash",
+        description="paper-cut | ink-wash | shadow-puppet | comic",
+    )
+    page_index: int = Field(..., ge=0)
+    instruction: str = Field(..., min_length=1, max_length=500)
+    pages: list[StorybookRewritePageScene] = Field(..., min_length=1)
+    story_text: str | None = None
+    visual_consistency: dict[str, Any] | None = None
+
+
+@app.get("/health")
+async def health() -> dict[str, str]:
+    return {"status": "ok"}
+
+
+@app.get("/api/health/keys")
+async def health_keys() -> dict[str, Any]:
+    """探测各 API 密钥与连通性（不返回密钥明文）。本地排障用。"""
+    from services.api_health import check_all_services
+
+    return await check_all_services()
+
+
+@app.websocket("/api/asr/ws")
+async def asr_realtime_ws(websocket: WebSocket) -> None:
+    """语音子模块：收 PCM 音频后调用 qwen3-asr-flash（OpenAI兼容）转写。"""
+    await websocket.accept()
+    from services.asr_service import AsrRealtimeBridge, require_asr_sdk
+
+    if not CONFIG.DASHSCOPE_API_KEY:
+        await websocket.send_json({"type": "error", "detail": "未配置 DASHSCOPE_API_KEY"})
+        await websocket.close(code=4000)
+        return
+    try:
+        require_asr_sdk()
+    except RuntimeError as exc:
+        await websocket.send_json({"type": "error", "detail": str(exc)})
+        await websocket.close(code=4001)
+        return
+
+    bridge = AsrRealtimeBridge(websocket)
+    bridge.start_worker()
+    try:
+        await bridge.wait_ready(timeout=35.0)
+    except Exception as exc:  # noqa: BLE001
+        try:
+            await websocket.send_json({"type": "error", "detail": f"实时识别未就绪: {exc}"})
+        except Exception:
+            pass
+        bridge.end_audio_stream()
+        try:
+            await asyncio.wait_for(bridge.wait_done(), timeout=20.0)
+        except Exception:
+            pass
+        await websocket.close()
+        return
+
+    await websocket.send_json(
+        {
+            "type": "ready",
+            "pcm": {"sample_rate_hz": 16000, "encoding": "pcm_s16le", "channels": 1},
+        }
+    )
+
+    try:
+        while True:
+            message = await websocket.receive()
+            if message["type"] == "websocket.disconnect":
+                break
+            chunk = message.get("bytes")
+            if chunk is not None:
+                bridge.push_audio(chunk)
+                continue
+            raw_text = message.get("text")
+            if raw_text is not None:
+                try:
+                    data = json.loads(raw_text)
+                except json.JSONDecodeError:
+                    continue
+                if data.get("type") == "end":
+                    break
+    except WebSocketDisconnect:
+        pass
+    finally:
+        bridge.end_audio_stream()
+        try:
+            await asyncio.wait_for(bridge.wait_done(), timeout=90.0)
+        except Exception:
+            pass
+
+
+@app.post("/api/storybook/create")
+async def create_storybook(body: StorybookCreateRequest) -> dict:
+    recorder = RunArtifactRecorder.maybe_create(
+        creation_source=body.creation_source or "keywords",
+        style=body.style,
+    )
+    if recorder is not None:
+        recorder.record("http_request", body.model_dump())
+    agent = build_default_tongqu_agent()
+    result = await agent.run(
+        keywords=body.keywords,
+        style=body.style,
+        sketch_image_base64=body.sketch_image_base64,
+        sketch_text=body.sketch_text,
+        creation_source=body.creation_source,
+        enable_style_keyword_enhancer=body.enable_style_keyword_enhancer,
+        run_recorder=recorder,
+    )
+    if recorder is not None:
+        result["run_artifact_dir"] = str(recorder.run_dir)
+        result["run_artifact_file"] = str(recorder.run_file)
+        recorder.finish(result)
+    return result
+
+
+@app.post("/api/storybook/create/stream")
+async def create_storybook_stream(body: StorybookCreateRequest) -> StreamingResponse:
+    recorder = RunArtifactRecorder.maybe_create(
+        creation_source=body.creation_source or "keywords",
+        style=body.style,
+    )
+    if recorder is not None:
+        recorder.record("http_request", body.model_dump())
+
+    async def stream() -> Any:
+        queue: asyncio.Queue[dict] = asyncio.Queue()
+
+        async def emit_stage(stage: dict) -> None:
+            if recorder is not None:
+                recorder.record("progress_event", stage)
+            await queue.put({"type": "progress", "stage": stage})
+
+        async def worker() -> None:
+            try:
+                await queue.put(
+                    {
+                        "type": "progress",
+                        "stage": {
+                            "id": "queued",
+                            "title": "任务已接收",
+                            "detail": "已收到创作请求，正在启动童趣中枢",
+                        },
+                    }
+                )
+                agent = build_default_tongqu_agent()
+                result = await agent.run(
+                    keywords=body.keywords,
+                    style=body.style,
+                    sketch_image_base64=body.sketch_image_base64,
+                    sketch_text=body.sketch_text,
+                    creation_source=body.creation_source,
+                    enable_style_keyword_enhancer=body.enable_style_keyword_enhancer,
+                    on_progress=emit_stage,
+                    run_recorder=recorder,
+                )
+                if recorder is not None:
+                    result["run_artifact_dir"] = str(recorder.run_dir)
+                    result["run_artifact_file"] = str(recorder.run_file)
+                    recorder.finish(result)
+                await queue.put({"type": "result", "data": result})
+            except Exception as exc:  # noqa: BLE001
+                if recorder is not None:
+                    recorder.record(
+                        "stream_error",
+                        {"error": "服务端流式生成失败", "detail": str(exc)},
+                    )
+                    recorder.finish({"ok": False, "error": "服务端流式生成失败", "detail": str(exc)})
+                await queue.put(
+                    {
+                        "type": "error",
+                        "error": "服务端流式生成失败",
+                        "detail": str(exc),
+                    }
+                )
+            finally:
+                await queue.put({"type": "done"})
+
+        task = asyncio.create_task(worker())
+        try:
+            while True:
+                item = await queue.get()
+                yield json.dumps(item, ensure_ascii=False) + "\n"
+                if item.get("type") == "done":
+                    break
+        finally:
+            if not task.done():
+                task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await task
+
+    return StreamingResponse(stream(), media_type="application/x-ndjson")
+
+
+@app.post("/api/storybook/rewrite-page")
+async def rewrite_storybook_page(body: StorybookRewritePageRequest) -> dict:
+    recorder = RunArtifactRecorder.maybe_create(
+        creation_source="rewrite-page",
+        style=body.style,
+    )
+    if recorder is not None:
+        recorder.record("http_request", body.model_dump())
+    try:
+        from core.models import Scene
+        from services.story_pipeline import build_default_story_pipeline
+
+        pipeline = build_default_story_pipeline()
+        scenes = [
+            Scene(
+                scene_no=item.scene_no or idx + 1,
+                text=item.text,
+                image_prompt=item.image_prompt or "",
+            )
+            for idx, item in enumerate(body.pages)
+        ]
+        result = await pipeline.rewrite_single_page(
+            title=body.title,
+            style=body.style,
+            page_index=body.page_index,
+            instruction=body.instruction,
+            pages=scenes,
+            story_text=body.story_text,
+            visual_consistency=body.visual_consistency or {},
+            run_recorder=recorder,
+        )
+        if recorder is not None:
+            result["run_artifact_dir"] = str(recorder.run_dir)
+            result["run_artifact_file"] = str(recorder.run_file)
+            recorder.finish(result)
+        return result
+    except Exception as exc:  # noqa: BLE001
+        detail = str(exc)
+        result = {
+            "ok": False,
+            "error": "替换本页失败",
+            "detail": detail,
+        }
+        if "safety_blocked" in detail or "不适合儿童绘本" in detail:
+            result.update(
+                {
+                    "code": "safety_blocked",
+                    "safety_blocked": True,
+                    "should_stop": True,
+                }
+            )
+        if recorder is not None:
+            recorder.finish(result)
+        return result

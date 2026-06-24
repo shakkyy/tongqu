@@ -1,0 +1,18 @@
+# 核心
+python-dotenv>=1.0.0
+requests>=2.31.0
+
+# Gemini：仅绘本配图（文生图）；OpenAI 兼容中转需 openai
+google-genai>=1.0.0
+openai>=1.0.0
+
+# HTTP 服务
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+
+# 阿里云百炼（故事 / VL / ASR / CosyVoice TTS）
+dashscope>=1.25.6
+
+# 中文风格关键词增强
+torch>=2.2.0
+transformers>=4.51.0
